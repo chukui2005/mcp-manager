@@ -31,31 +31,34 @@
 2. **`TASK-000-dry-run` 闭环演练**:
    - 验证了 ADR 0000 产出、`Approved: Yes` 人类门禁、隔离分支提交、Reviewer 判定与人类合并全流程。
 3. **`TASK-001` 多模块骨架与 SARIF 契约**:
-   - **架构设计**: 产出中文版 [docs/adr/0001-project-scope-and-modules.md](docs/adr/0001-project-scope-and-modules.md)；
-   - **契约基线**: 产出 OASIS SARIF 2.1.0 契约 [docs/contracts/scan-result.schema.json](docs/contracts/scan-result.schema.json)；
-   - **核心调研**: 架构师通过学习 Sprint 产出权威研读笔记 [docs/learning-notes.md](docs/learning-notes.md)；
-   - **代码落地**: 
-     - `mcp-governance-core`: 纯 Java 17，零 Spring 依赖，实现防篡改 SHA-256 签名的不可变 `GovernedTool` 与 `ScanRule` SPI；
-     - `mcp-governance-scanner`: 静态评估引擎与 SARIF 2.1.0 序列化器；
-     - `mcp-governance-rules-owasp`: 实现 MCP01-001 明文密钥检测规则（支持 Secret 脱敏与环境变量语法放行）；
-     - `mcp-governance-cli`: 基于 Picocli 的命令行工具，测试覆盖阻断退出码；
-   - **质量门禁**: 10/10 单元测试全部通过，Javadoc 编译零告警。
+   - 确立 ADR 0001 与 SARIF 2.1.0 契约；
+   - 实现纯 Java 领域模型 `GovernedTool`、静态引擎与 `MCP01-001` 密钥检测；
+4. **`TASK-002` 真实 MCP 配置文件解析引擎与 OWASP MCP02/MCP03 规则集 (最新完成)**:
+   - **架构设计**: 产出中文版 [docs/adr/0002-mcp-config-parser-and-owasp-rules.md](docs/adr/0002-mcp-config-parser-and-owasp-rules.md) 与 [docs/architecture/0002-blueprint.md](docs/architecture/0002-blueprint.md)；
+   - **领域模型**: `mcp-governance-core` 引入不可变 `McpConfig`、`McpServerConfig` 与扩展 `ScanContext`，100% 保持零 Spring 依赖；
+   - **配置解析**: `mcp-governance-scanner` 实现 `McpConfigParser`，纯静态解析 `mcp.json` 与 Claude Desktop 格式，防范外部命令执行；
+   - **OWASP 规则**: `mcp-governance-rules-owasp` 实现并注册 `MCP02-001` (权限蔓延/通配符)、`MCP03-001` (隐藏提示注入)、`MCP03-002` (同名工具影子劫持)；
+   - **CLI 终端**: `mcp-governance-cli` 实现 ANSI 彩色 Markdown 报告渲染器 `ConsoleReportRenderer` 与 Exit Code 2 门禁；
+   - **全量门禁**: 全模块 19 个单元测试全部通过，`mvn javadoc:javadoc` 零警告，已合入 `main` 分支。
 
 ---
 
-## 3. 下一个任务目标：TASK-002
+## 3. 下一个任务目标：TASK-003 (Phase 1 收官交付)
 
-### 任务名称：真实 MCP 配置文件解析引擎与 OWASP MCP02/MCP03 规则集
+### 任务名称：GitHub Action 自举静态审计与 Phase 1 双语 README 交付
 
-- **模块重点**: `mcp-governance-scanner` 与 `mcp-governance-rules-owasp`
+- **模块重点**: `mcp-governance-action` 与根目录 README 体系
 - **核心需求**:
-  1. **配置解析器 (Parser)**: 支持静态解析真实的 `mcp.json` 与 Claude Desktop 格式 (`claude_desktop_config.json`)，支持提取 `mcpServers` 中的环境变量、参数、命令定义；
-  2. **MCP02 规则 (权限蔓延)**:
-     - 规则 ID: `MCP02-001` (过度宽泛的工具权限定义，如包含通配符 `*` 或具有直接破坏性的未授权系统操作)；
-  3. **MCP03 规则 (工具投毒与提示注入)**:
-     - 规则 ID: `MCP03-001` (工具描述中的隐藏指令与提示词注入检测，如 `Ignore previous instructions`、`<script>` 注入特征检测)；
-     - 规则 ID: `MCP03-002` (工具影子混淆/重名覆盖风险检测 Tool Shadowing)；
-  4. **CLI 输出体验优化**: 控制台增加 ANSI 彩色 Markdown 格式的风险摘要输出。
+  1. **GitHub Action 封装 (`mcp-governance-action`)**:
+     - 编写 Action 清单（`action.yml`）与 Dockerfile / Composite 脚本，支持在 GitHub CI 中一键运行 `mcp-governance-cli`；
+     - 自动导出符合 OASIS SARIF 2.1.0 规范的 `scan-result.sarif` 报表；
+     - 集成 `github/codeql-action/upload-sarif@v3` 实现代码扫描内联告警。
+  2. **项目级 SARIF 自举扫描**:
+     - 为本仓库自身添加 `.github/workflows/mcp-governance-scan.yml`，在 PR/Push 时静态审计项目自测示例配置，验证零 Critical 门禁。
+  3. **双语 README 交付 (Phase 1 结项标志)**:
+     - 按照《AGENTS.md》第 8 节要求撰写中英双语文档：`README.md` (英文) 与 `README.zh-CN.md` (中文)；
+     - 首屏包含：一句话定位、真实终端彩色输出截图/预览、同类对比表、5 秒上手 Quick Start、架构图与 Phase 1 Roadmap；
+     - 首屏严格中英互链。
 
 ---
 
@@ -63,18 +66,18 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层，Phase 1）。
-目前 TASK-000 与 TASK-001（Maven 4 模块架构骨架与 SARIF 契约）已经全部研发完成并合入 main 分支。
+目前 TASK-000、TASK-001 与 TASK-002（真实配置解析器与 OWASP MCP01/02/03 规则集、ANSI 彩色报告）已经全部研发完成并合入 main 分支。
 请你严格阅读仓库根目录的以下核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
 3. docs/environment-baseline.md（技术与版本基线）
-4. docs/adr/0001-project-scope-and-modules.md（模块架构 ADR）
-5. docs/learning-notes.md（MCP 与 OWASP 规范调研成果）
+4. docs/adr/0002-mcp-config-parser-and-owasp-rules.md（最新配置与规则 ADR）
+5. docs/contracts/scan-result.schema.json（SARIF 契约规范）
 
 【你的职责】：
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-002：实现真实的 MCP 配置文件解析器与 OWASP MCP02/MCP03 规则集。
-请分派架构师队友产出 ADR 0002 与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
+启动 TASK-003（Phase 1 收官任务）：GitHub Action 自举静态审计与 Phase 1 双语 README 交付。
+请分派架构师队友产出 ADR 0003 与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
 ```

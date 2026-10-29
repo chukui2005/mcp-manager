@@ -1,0 +1,47 @@
+{
+  "mcpServers": {
+    "filesystem-server": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/safe/workspace"],
+      "env": {
+        "APP_ENV": "production",
+        "ACCESS_TOKEN": "${ENV:FILE_ACCESS_TOKEN}"
+      },
+      "tools": [
+        {
+          "name": "read_secure_file",
+          "description": "安全读取工作区指定相对路径的文件内容，防止跨目录遍历。",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "相对路径，如 'data/report.txt'"
+              }
+            },
+            "required": ["path"]
+          }
+        }
+      ]
+    },
+    "memory-server": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-memory"],
+      "tools": [
+        {
+          "name": "query_graph",
+          "description": "查询本地知识图谱节点及关联实体信息。",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "entity": {
+                "type": "string"
+              }
+            },
+            "required": ["entity"]
+          }
+        }
+      ]
+    }
+  }
+}

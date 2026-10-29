@@ -70,6 +70,31 @@
                     </compilerArgs>
                 </configuration>
             </plugin>
+            <!-- Maven Shade 插件：构建可执行 Fat-JAR 并合并 SPI 资源描述 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.3</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                            <shadedClassifierName>all</shadedClassifierName>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>io.github.chukui2005.mcpgov.cli.McpScanCommand</mainClass>
+                                </transformer>
+                                <!-- 合并 META-INF/services/ 中的 SPI 描述，避免各模块 ScanRule 被覆盖 -->
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                            </transformers>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

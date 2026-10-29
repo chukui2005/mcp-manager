@@ -1,0 +1,85 @@
+name: 'MCP Governance Scanner'
+description: 'Java 原生 MCP 静态治理与配置安全审计工具，基于 OWASP MCP Top 10 规则检测明文凭据、过度授权与提示注入风险，并导出 SARIF 2.1.0 报告。'
+author: 'chukui2005'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  target:
+    description: '待扫描的 MCP 配置文件或目录路径（支持 mcp.json 或 Claude Desktop 格式）'
+    required: false
+    default: 'mcp.json'
+  output-sarif:
+    description: 'SARIF 2.1.0 报告文件的输出路径'
+    required: false
+    default: 'scan-result.sarif'
+  upload-sarif:
+    description: '是否自动调用 github/codeql-action/upload-sarif@v3 将报告上传至 GitHub Code Scanning'
+    required: false
+    default: 'true'
+  fail-on-findings:
+    description: '当扫描发现 CRITICAL 或 HIGH 级别安全漏洞时是否中断构建并使 Action 失败'
+    required: false
+    default: 'true'
+
+outputs:
+  sarif-path:
+    description: '最终生成的 SARIF 报告文件路径'
+    value: ${{ inputs.output-sarif }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 检查与配置 Java 17 运行环境
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        cache: 'maven'
+
+    - name: 构建 MCP Governance CLI 可执行包
+      shell: bash
+      run: |
+        mvn -B -ntp clean package -DskipTests
+
+    - name: 执行 MCP 静态安全扫描
+      id: scan
+      shell: bash
+      run: |
+        FAIL_ON_FINDINGS="${{ inputs.fail-on-findings }}"
+        CLI_JAR=$(find mcp-governance-cli/target -name "mcp-governance-cli-*-all.jar" | head -n 1)
+        if [ -z "$CLI_JAR" ]; then
+          echo "::error::未找到 mcp-governance-cli 可执行 Fat-JAR！"
+          exit 1
+        fi
+
+        echo "使用 CLI JAR: $CLI_JAR"
+        echo "扫描目标: ${{ inputs.target }}"
+        echo "SARIF 输出: ${{ inputs.output-sarif }}"
+
+        set +e
+        java -jar "$CLI_JAR" "${{ inputs.target }}" -o "${{ inputs.output-sarif }}"
+        SCAN_EXIT_CODE=$?
+        set -e
+
+        echo "扫描完成，退出码: $SCAN_EXIT_CODE"
+
+        if [ "$SCAN_EXIT_CODE" -eq 2 ]; then
+          echo "::warning::检测到 CRITICAL 或 HIGH 级别安全违规！"
+          if [ "$FAIL_ON_FINDINGS" = "true" ]; then
+            echo "::error::配置了 fail-on-findings=true，静态扫描阻断构建。"
+            exit 2
+          fi
+        elif [ "$SCAN_EXIT_CODE" -ne 0 ]; then
+          echo "::error::扫描器异常退出，错误码: $SCAN_EXIT_CODE"
+          exit "$SCAN_EXIT_CODE"
+        fi
+
+    - name: 上传 SARIF 报告至 GitHub Code Scanning
+      if: inputs.upload-sarif == 'true' && always()
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.output-sarif }}
+        category: 'mcp-governance'

@@ -92,6 +92,9 @@ public class McpScanCommand implements Callable<Integer> {
         String sarifJson = serializer.serialize(engine.getRegisteredRules(), findings);
 
         if (outputFile != null) {
+            if (outputFile.getParentFile() != null && !outputFile.getParentFile().exists()) {
+                outputFile.getParentFile().mkdirs();
+            }
             Files.writeString(outputFile.toPath(), sarifJson);
             System.out.println("SARIF 报告已生成至: " + outputFile.getAbsolutePath());
         }

@@ -1,0 +1,4 @@
+io.github.chukui2005.mcpgov.rules.owasp.mcp01.PlaintextTokenScanRule
+io.github.chukui2005.mcpgov.rules.owasp.mcp02.BroadScopeScanRule
+io.github.chukui2005.mcpgov.rules.owasp.mcp03.PromptInjectionScanRule
+io.github.chukui2005.mcpgov.rules.owasp.mcp03.ToolShadowingScanRule

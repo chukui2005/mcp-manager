@@ -40,4 +40,6 @@ worktrees/
 
 # AI internal task execution logs (Option B: Keep repository clean for production code & docs)
 .worklog/
+*.tmp
+
 

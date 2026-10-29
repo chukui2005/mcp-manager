@@ -1,10 +1,16 @@
 package io.github.chukui2005.mcpgov.cli;
 
+import io.github.chukui2005.mcpgov.cli.render.ConsoleReportRenderer;
 import io.github.chukui2005.mcpgov.core.model.Finding;
+import io.github.chukui2005.mcpgov.core.model.McpConfig;
 import io.github.chukui2005.mcpgov.core.model.Severity;
 import io.github.chukui2005.mcpgov.core.spi.ScanContext;
 import io.github.chukui2005.mcpgov.rules.owasp.mcp01.PlaintextTokenScanRule;
+import io.github.chukui2005.mcpgov.rules.owasp.mcp02.BroadScopeScanRule;
+import io.github.chukui2005.mcpgov.rules.owasp.mcp03.PromptInjectionScanRule;
+import io.github.chukui2005.mcpgov.rules.owasp.mcp03.ToolShadowingScanRule;
 import io.github.chukui2005.mcpgov.scanner.ScanEngine;
+import io.github.chukui2005.mcpgov.scanner.parser.McpConfigParser;
 import io.github.chukui2005.mcpgov.scanner.sarif.SarifSerializer;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -18,6 +24,7 @@ import java.util.concurrent.Callable;
 
 /**
  * MCP Governance 命令行入口。
+ * 负责解析 MCP 配置文件、执行静态扫描、输出 ANSI 报告及导出 SARIF 2.1.0 标准结果。
  */
 @Command(
         name = "mcp-scan",
@@ -39,6 +46,11 @@ public class McpScanCommand implements Callable<Integer> {
     @Option(names = {"--allow-execute"}, description = "显式允许执行 STDIO 命令以探测动态工具 (高风险)")
     private boolean allowExecute;
 
+    /**
+     * 命令行主函数入口。
+     *
+     * @param args 命令行入参
+     */
     public static void main(String[] args) {
         int exitCode = new CommandLine(new McpScanCommand()).execute(args);
         System.exit(exitCode);
@@ -55,14 +67,26 @@ public class McpScanCommand implements Callable<Integer> {
             System.out.println("警告: 已启用 --allow-execute。请注意 STDIO 子进程可能带来任意代码执行风险 (MCP05)！");
         }
 
+        long startTime = System.currentTimeMillis();
         String content = Files.readString(targetFile.toPath());
-        ScanContext context = new ScanContext(targetFile.toPath(), content, null, null, allowExecute);
 
-        // 初始化规则集与引擎
-        PlaintextTokenScanRule tokenRule = new PlaintextTokenScanRule();
-        ScanEngine engine = new ScanEngine(List.of(tokenRule));
+        // 解析 MCP 配置文件并构建强类型 McpConfig
+        McpConfigParser parser = new McpConfigParser();
+        McpConfig mcpConfig = parser.parseString(content);
+
+        // 构建具备强类型配置与内嵌声明工具的 ScanContext
+        ScanContext context = ScanContext.ofMcpConfig(targetFile.toPath(), content, mcpConfig);
+
+        // 初始化规则集与扫描引擎 (Phase 1 涵盖 MCP01、MCP02 与 MCP03)
+        ScanEngine engine = new ScanEngine(List.of(
+                new PlaintextTokenScanRule(),
+                new BroadScopeScanRule(),
+                new PromptInjectionScanRule(),
+                new ToolShadowingScanRule()
+        ));
 
         List<Finding> findings = engine.execute(context);
+        long elapsedMs = System.currentTimeMillis() - startTime;
 
         SarifSerializer serializer = new SarifSerializer();
         String sarifJson = serializer.serialize(engine.getRegisteredRules(), findings);
@@ -75,13 +99,11 @@ public class McpScanCommand implements Callable<Integer> {
         if (printSarif) {
             System.out.println(sarifJson);
         } else {
-            System.out.printf("扫描完成，共发现 %d 个安全问题。%n", findings.size());
-            for (Finding f : findings) {
-                System.out.printf("[%s] [%s] %s%n", f.severity(), f.ruleId(), f.message());
-            }
+            ConsoleReportRenderer renderer = new ConsoleReportRenderer();
+            renderer.render(System.out, targetFile.getPath(), findings, elapsedMs);
         }
 
-        // CI 门禁检查：若存在 CRITICAL 或 HIGH 级别阻断，返回非零退出码
+        // CI 门禁检查：若存在 CRITICAL 或 HIGH 级别阻断，返回非零退出码 2
         boolean hasBlockingFailure = findings.stream()
                 .anyMatch(f -> f.severity() == Severity.CRITICAL || f.severity() == Severity.HIGH);
 

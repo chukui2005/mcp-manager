@@ -1,9 +1,9 @@
 # Task: TASK-000 - 状态机与多角色协作闭环演练 (Dry-Run)
 
 ## 状态元数据
-- **Status**: DESIGN
-- **Owner**: Architect
-- **Approved**: No
+- **Status**: READY
+- **Owner**: Engineer
+- **Approved**: Yes
 - **Created**: 2026-10-29
 - **Updated**: 2026-10-29
 
@@ -40,7 +40,7 @@
 ---
 
 ## 4. 人类批准记录 (Human Approval Gate)
-Approved: No
+Approved: Yes
 
 ---
 

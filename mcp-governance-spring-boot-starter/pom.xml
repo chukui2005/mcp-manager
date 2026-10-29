@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.chukui2005</groupId>
+        <artifactId>mcp-manager</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>mcp-governance-spring-boot-starter</artifactId>
+    <packaging>jar</packaging>
+
+    <name>MCP Governance Spring Boot Starter</name>
+    <description>MCP 治理 Spring Boot Starter，提供非侵入的运行时请求拦截、参数脱敏与调用审计能力。</description>
+
+    <dependencies>
+        <!-- 核心治理契约模块（纯 Java，无框架依赖） -->
+        <dependency>
+            <groupId>io.github.chukui2005</groupId>
+            <artifactId>mcp-governance-core</artifactId>
+        </dependency>
+
+        <!-- Spring Boot 自动装配基座（声明为 optional，避免对宿主产生强制侵入） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 配置元数据处理器（可选，用于编译期生成配置元数据提示） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- 日志抽象 -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <!-- 测试依赖 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

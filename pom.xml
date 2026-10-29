@@ -40,6 +40,7 @@
         <module>mcp-governance-scanner</module>
         <module>mcp-governance-rules-owasp</module>
         <module>mcp-governance-cli</module>
+        <module>mcp-governance-spring-boot-starter</module>
     </modules>
 
     <properties>
@@ -51,6 +52,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <!-- 依赖版本基线 -->
+        <spring-boot.version>3.3.4</spring-boot.version>
         <jackson.version>2.17.2</jackson.version>
         <picocli.version>4.7.6</picocli.version>
         <slf4j.version>2.0.13</slf4j.version>
@@ -68,6 +70,13 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <!-- 内部模块依赖 -->
             <dependency>
                 <groupId>io.github.chukui2005</groupId>
@@ -87,6 +96,11 @@
             <dependency>
                 <groupId>io.github.chukui2005</groupId>
                 <artifactId>mcp-governance-cli</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.chukui2005</groupId>
+                <artifactId>mcp-governance-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

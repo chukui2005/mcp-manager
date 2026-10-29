@@ -1,0 +1,215 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/chukui2005/mcp-manager/docs/contracts/scan-result.schema.json",
+  "title": "MCP Governance Static Scan Result (SARIF 2.1.0 Profile)",
+  "description": "Standard SARIF 2.1.0 schema subset emitted by mcp-governance-scanner for OWASP MCP Top 10 security findings.",
+  "type": "object",
+  "required": [
+    "version",
+    "$schema",
+    "runs"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["2.1.0"],
+      "description": "The SARIF format version of this log file."
+    },
+    "$schema": {
+      "type": "string",
+      "format": "uri",
+      "description": "URI of the official SARIF 2.1.0 JSON Schema."
+    },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "tool",
+          "results"
+        ],
+        "properties": {
+          "tool": {
+            "type": "object",
+            "required": ["driver"],
+            "properties": {
+              "driver": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "version",
+                  "informationUri",
+                  "rules"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "enum": ["mcp-governance-scanner"]
+                  },
+                  "version": {
+                    "type": "string",
+                    "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+.*$"
+                  },
+                  "informationUri": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "rules": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "id",
+                        "name",
+                        "shortDescription",
+                        "defaultConfiguration"
+                      ],
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^MCP(0[1-9]|10)-[0-9]{3}$",
+                          "description": "Rule identifier formatted with OWASP MCP category, e.g., MCP01-001"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "shortDescription": {
+                          "type": "object",
+                          "required": ["text"],
+                          "properties": {
+                            "text": { "type": "string" }
+                          }
+                        },
+                        "fullDescription": {
+                          "type": "object",
+                          "required": ["text"],
+                          "properties": {
+                            "text": { "type": "string" }
+                          }
+                        },
+                        "help": {
+                          "type": "object",
+                          "required": ["text"],
+                          "properties": {
+                            "text": { "type": "string" },
+                            "markdown": { "type": "string" }
+                          }
+                        },
+                        "defaultConfiguration": {
+                          "type": "object",
+                          "required": ["level"],
+                          "properties": {
+                            "level": {
+                              "type": "string",
+                              "enum": ["error", "warning", "note", "none"]
+                            }
+                          }
+                        },
+                        "properties": {
+                          "type": "object",
+                          "properties": {
+                            "owaspCategory": {
+                              "type": "string",
+                              "enum": [
+                                "MCP01", "MCP02", "MCP03", "MCP04", "MCP05",
+                                "MCP06", "MCP07", "MCP08", "MCP09", "MCP10"
+                              ]
+                            },
+                            "remediation": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "ruleId",
+                "level",
+                "message",
+                "locations"
+              ],
+              "properties": {
+                "ruleId": {
+                  "type": "string",
+                  "pattern": "^MCP(0[1-9]|10)-[0-9]{3}$"
+                },
+                "level": {
+                  "type": "string",
+                  "enum": ["error", "warning", "note"]
+                },
+                "message": {
+                  "type": "object",
+                  "required": ["text"],
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "description": "Descriptive finding message. MUST NOT leak secrets or tokens."
+                    }
+                  }
+                },
+                "locations": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": ["physicalLocation"],
+                    "properties": {
+                      "physicalLocation": {
+                        "type": "object",
+                        "required": ["artifactLocation"],
+                        "properties": {
+                          "artifactLocation": {
+                            "type": "object",
+                            "required": ["uri"],
+                            "properties": {
+                              "uri": { "type": "string" },
+                              "uriBaseId": { "type": "string" }
+                            }
+                          },
+                          "region": {
+                            "type": "object",
+                            "properties": {
+                              "startLine": { "type": "integer", "minimum": 1 },
+                              "startColumn": { "type": "integer", "minimum": 1 },
+                              "endLine": { "type": "integer", "minimum": 1 },
+                              "endColumn": { "type": "integer", "minimum": 1 }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "properties": {
+                  "type": "object",
+                  "properties": {
+                    "targetServer": { "type": "string" },
+                    "targetTool": { "type": "string" },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^[a-fA-F0-9]{64}$"
+                    },
+                    "riskTags": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

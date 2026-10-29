@@ -2,8 +2,8 @@
 
 > **当前维护者**: MCP Governance 统筹中枢  
 > **更新时间**: 2026-10-29  
-> **当前版本**: v0.1.0-alpha  
-> **对应阶段**: Phase 1 (静态扫描 CLI 与 GitHub Action)
+> **当前版本**: v0.2.0-alpha  
+> **对应阶段**: Phase 2 (运行时治理与 Spring Boot Starter)
 
 ---
 
@@ -38,31 +38,30 @@
    - 实现 `MCP02-001` (权限蔓延/通配符)、`MCP03-001` (隐藏提示注入)、`MCP03-002` (同名工具影子劫持)；
    - 实现 ANSI 彩色 Markdown 报告渲染器 `ConsoleReportRenderer` 与 Exit Code 2 门禁。
 5. **`TASK-003` GitHub Action 自举静态审计与 Phase 1 双语 README 交付 (Phase 1 结项收官)**:
-   - **架构设计**: 产出中文版 [docs/adr/0003-github-action-and-readme-deliverables.md](docs/adr/0003-github-action-and-readme-deliverables.md) 与 [docs/architecture/0003-blueprint.md](docs/architecture/0003-blueprint.md)；
-   - **CLI 可执行包**: `mcp-governance-cli` 配置 `maven-shade-plugin` 与 `ServicesResourceTransformer`，确保规则 SPI 安全合并，生成 `mcp-governance-cli-*-all.jar`；
-   - **Action 封装**: 根目录与模块提供 Composite Action (`action.yml`)，支持在 GitHub CI 中一键运行审计，产出标准 SARIF 2.1.0 报表，集成 `github/codeql-action/upload-sarif@v3` 实现代码扫描内联告警；
-   - **CI 自举审计**: `.github/workflows/mcp-governance-scan.yml` 结合 `samples/clean-mcp.json` 与 `samples/vulnerable-mcp.json` 完成正向通过与对抗阻断 (Exit Code 2) 校验；
-   - **双语开源门面**: 严格依据《AGENTS.md》第 8 节排版结构交付全英文 [README.md](README.md) 与全中文 [README.zh-CN.md](README.zh-CN.md)，首屏互链、高保真 ANSI 彩色效果预览、同类产品对比矩阵与真实 Roadmap；
-   - **全量门禁**: 全模块 19 个单元测试 100% 通过，`mvn javadoc:javadoc` 零警告，Reviewer 审查给出 `verdict: PASS`。
+   - 产出 ADR 0003 与 Blueprint 0003，实现 Shade Fat-JAR、Composite Action 封装与 CI 自举扫描；
+   - 交付中英双语 `README.md` 与 `README.zh-CN.md`。
+6. **`TASK-004` Spring Boot Starter 脚手架与运行时拦截契约设计 (Phase 2 启航收官)**:
+   - **架构决策与设计**: 产出 [docs/adr/0004-spring-boot-starter-and-runtime-interception.md](docs/adr/0004-spring-boot-starter-and-runtime-interception.md) 与 [docs/architecture/0004-blueprint.md](docs/architecture/0004-blueprint.md)；
+   - **纯 Java 核心拦截契约 (`mcp-governance-core`)**: 实现不可变上下文 `McpInvocationContext`、调用结果 `McpInvocationResult`、拦截器接口 `McpInterceptor`、责任链执行器 `McpInterceptorChain` 与治理异常体系，坚守零 Spring 依赖红线，严格隔离 Wire 传输模型；
+   - **Starter 自动装配 (`mcp-governance-spring-boot-starter`)**: 基于 Spring Boot 3.3.4，引入 `@ConditionalOnClass`、`@ConditionalOnMissingBean`、`@ConditionalOnProperty` 条件装配，提供开箱即用的敏感参数掩码脱敏与调用审计拦截器 `LoggingMcpInterceptor`；
+   - **全量门禁**: 全工程 6 个模块、40 个单元测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`，已成功合入 `main`。
 
 ---
 
-## 3. 下一个任务目标：TASK-004 (Phase 2 启航任务)
+## 3. 下一个任务目标：TASK-005 (运行时策略拦截器实现与 OWASP MCP02 动态治理)
 
-### 任务名称：mcp-governance-spring-boot-starter 模块脚手架与运行时请求拦截契约设计
+### 任务名称：动态运行时策略拦截器集实现与 Spring Boot 深度集成
 
 - **所属阶段**: Phase 2 (运行时治理与 Spring Boot Starter)
-- **模块重点**: `mcp-governance-spring-boot-starter` 与 `mcp-governance-core` 运行时扩展
+- **模块重点**: `mcp-governance-spring-boot-starter` 与 `mcp-governance-core`
 - **核心需求**:
-  1. **Starter 模块架构设计**:
-     - 依照《AGENTS.md》第 5.1 节与 6.1 节，产出 ADR 0004 与设计蓝图；
-     - 引入 `@ConditionalOnClass` / `@ConditionalOnMissingBean` 条件装配，严禁强制引入非必要依赖；
-     - 配置属性通过 `@ConfigurationProperties(prefix = "mcp.governance")` 绑定并具备完备 Javadoc 与安全默认值。
-  2. **运行时控制面拦截模型**:
-     - 基于不可变领域模型，设计运行时 MCP 请求审计拦截器接口与日志上下文；
-     - 隔离底层 Wire 传输，绝不泄漏 SDK 内部原始类型。
-  3. **单元测试与条件装配验证**:
-     - 编写上下文加载测试，验证在缺少相关依赖时的平滑降级与非侵入性。
+  1. **运行时访问控制与限流/权限拦截器**:
+     - 基于不可变调用上下文 `McpInvocationContext`，实现针对工具调用权限（Tool ACL / 白名单 / 动态黑名单）的拦截器（映射 OWASP MCP02 权限蔓延治理）；
+     - 实现动态参数规则校验拦截器（防提示注入与越权入参）；
+  2. **端到端适配与集成演示**:
+     - 提供简易测试 Mock 服务或 MCP 客户端适配器示例，展示如何在 Controller/Service 运行时切面调用 `McpInterceptorChain` 实现端到端鉴权与审计；
+  3. **自动化测试与门禁**:
+     - 编写多场景拦截与阻断集成测试，确保 Fail-Fast 生效与脱敏报表输出。
 
 ---
 
@@ -70,18 +69,18 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1（静态扫描 CLI、OWASP 规则集、GitHub Action 与双语 README 门面）已全部收官并合入 main 分支。
+Phase 1（静态扫描与 GitHub Action）与 TASK-004（Spring Boot Starter 模块脚手架与运行时请求拦截契约设计）已全部收官并合入 main 分支。
 请你严格阅读仓库根目录的以下核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
 3. docs/environment-baseline.md（技术与版本基线）
-4. docs/adr/0003-github-action-and-readme-deliverables.md（Phase 1 收官 ADR）
-5. docs/contracts/scan-result.schema.json（SARIF 契约规范）
+4. docs/adr/0004-spring-boot-starter-and-runtime-interception.md（运行时契约 ADR）
+5. docs/architecture/0004-blueprint.md（运行时实施蓝图）
 
 【你的职责】：
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-004（Phase 2 启航任务）：mcp-governance-spring-boot-starter 模块脚手架与运行时请求拦截契约设计。
-请分派架构师队友产出 ADR 0004 与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
+启动 TASK-005：动态运行时策略拦截器集实现与 Spring Boot 深度集成（Tool ACL 白名单治理与动态策略执行）。
+请分派架构师队友产出 ADR 0005 与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
 ```

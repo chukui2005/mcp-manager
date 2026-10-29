@@ -1,121 +1,103 @@
-# 0000. Dry-Run Workflow and Phase 1 Architecture Baseline
+# 0000. 演练协作工作流与 Phase 1 架构基线
 
-* **Status**: Proposed
-* **Date**: 2026-10-29
-* **Deciders**: Architect AI, Human Lead
-* **Consulted**: AGENTS.md, Environment Baseline
-
----
-
-## Context
-
-As the `mcp-manager` project kicks off, we face two foundational architectural challenges:
-
-1. **Multi-Agent Coordination & Safety Verification**:
-   The project operates under a strictly partitioned multi-agent governance charter (`AGENTS.md`). In complex agentic workflows, lack of explicit tool boundaries and informal handoffs frequently cause scope creep, unauthorized file edits, and unvetted merges. Before implementing production Java modules for Phase 1, an end-to-end "Dry-Run" (TASK-000) is required to test and validate:
-   - Tool permissions and role sandboxing (Architect read-only, Engineer isolated worktree, Reviewer read-only findings, Human final decision).
-   - Strict state machine transitions and handover gates.
-   - Machine-verifiable human sign-off mechanics.
-
-2. **Phase 1 Technical Scope & Security Posture**:
-   The objective of Phase 1 is delivering a lightweight, embeddable, Java-native static scanning CLI (`mcp-governance-cli`) and GitHub Action (`mcp-governance-action`) capable of evaluating Model Context Protocol (MCP) server configurations and schemas against the OWASP MCP Top 10.
-   - **Untrusted Execution Risk (MCP05)**: MCP configurations frequently define STDIO-based servers invoking local commands and shell binaries. Spawning arbitrary sub-processes during developer builds or CI pipeline scans presents severe remote code execution (RCE) and local exploitation vectors.
-   - **External Type Leakage**: Upstream client libraries (e.g., the official MCP Java SDK) use raw transport representations (such as `McpSchema.Tool` where `inputSchema` is a raw `Map<String, Object>`). Leaking SDK-specific wire structures across the governance domain threatens long-term modularity and breaks clean architecture boundaries.
-   - **Standard Reporting Format**: Scanner results must integrate seamlessly with enterprise devsecops pipelines and GitHub Code Scanning without proprietary lock-in.
+* **状态**: 已采纳 (Accepted)
+* **日期**: 2026-10-29
+* **决策者**: 架构师 AI、人类负责人
+* **参考文档**: AGENTS.md, docs/environment-baseline.md
 
 ---
 
-## Decision
+## 背景 (Context)
 
-We establish the following architectural policies, state transition protocols, and domain boundary standards:
+在 `mcp-manager` 项目启动之初，我们面临两大基础架构与协作层面的挑战：
 
-### 1. Multi-Agent Role Separation and State Machine
+1. **多 Agent 协作的安全与权限隔离验证**：
+   本项目受严格的多 Agent 治理宪章（`AGENTS.md`）约束。在复杂的自主智能体协作流程中，如果缺乏明确的工具权限边界和严格的交接门禁，极易引发越权修改文件、范围蔓延和未经审查的误合并。在正式实现 Phase 1 的生产级 Java 模块之前，必须通过一次端到端的“空闭环演练”（TASK-000），实测并验证：
+   - 工具权限的硬隔离（架构师只读、工程师在隔离分支工作树、审核员只读审查提意见、人类拥有最终合并决定权）。
+   - 状态机的确定性流转（`DESIGN → READY → IN_REVIEW → READY_TO_LAND → DONE`）。
+   - 机器可校验的人类批准机制（独立一行 `Approved: Yes`）。
 
-The task lifecycle follows a mandatory 5-stage deterministic state machine tracked in `.worklog/<task-id>.md`:
+2. **Phase 1 的技术定位与安全底线**：
+   Phase 1 的核心目标是交付轻量级、可嵌入、Java 原生的静态扫描 CLI（`mcp-governance-cli`）与 GitHub Action（`mcp-governance-action`），用于对 MCP Server 配置文件与 Tool Schema 开展针对 OWASP MCP Top 10 安全风险的静态分析。
+   - **防范未受信任的代码执行风险（MCP05）**：MCP 配置常常定义本地 STDIO 命令。扫描器在开发者电脑或 CI 中运行时，**绝不可默认直接拉起未受信任的本地子进程**，否则会产生严重的远程代码执行（RCE）隐患。
+   - **杜绝外部依赖类型泄漏**：官方 MCP Java SDK 2.0 使用宽松的传输层数据结构（如 `inputSchema` 为 `Map<String, Object>`）。若直接将此类 SDK 内部类型泄漏至核心治理层模型，将破坏架构纯洁度，引发长期维护风险。
+   - **业界标准报表规范**：扫描输出必须严格遵循 OASIS **SARIF 2.1.0** 规范，以便无缝集成 GitHub Code Scanning 与企业安全体系。
+
+---
+
+## 架构决策 (Decision)
+
+我们确立以下架构政策、状态流转协议与领域隔离标准：
+
+### 1. 多角色职责隔离与状态机
+
+任务生命周期遵循严格的 5 阶段状态机，记录在 `.worklog/<task-id>.md` 中：
 
 ```
 DESIGN ──► READY ──► IN_REVIEW ──► READY_TO_LAND ──► DONE
 ```
 
-Role-based access boundaries are strictly enforced:
-* **Architect**: Read-only (`Read`, `Grep`, `Glob`, `WebFetch`). Responsible for blueprints (`docs/architecture/`), ADRs (`docs/adr/`), and contract definitions (`docs/contracts/`). Forbidden from modifying implementation code, executing builds, or approving merges.
-* **Engineer**: Scoped to isolated branch/worktree with code modification and test execution permissions. Forbidden from pushing directly to `main`, forbidden from modifying `docs/adr/` and `docs/contracts/`, and forbidden from self-reviewing.
-* **Reviewer**: Read-only code and git inspection. Audits against ADRs, contracts, code style, and security invariants. Emits structured findings and a verdict (`PASS` / `FAIL`). Forbidden from modifying code, applying patches, or merging PRs.
-* **Human Decider**: Sole authority for phase progressions, ADR approvals, and merging PRs into `main`.
+角色权限硬边界：
+* **架构师**：只读权限（`Read`, `Grep`, `Glob`, `WebFetch`）。负责产出蓝图、ADR 与接口契约。严禁编写实现代码、严禁编译构建、严禁批准合并。文档一律使用**中文**撰写。
+* **工程师**：在隔离分支/worktree 中操作。负责实现代码与测试，严禁直接推送 `main` 分支，严禁修改 `docs/adr/` 与 `docs/contracts/`，严禁自审。
+* **审核员**：代码与 Git 差异只读审查。对照 ADR 与契约进行合规与安全审查，输出判定（`verdict: PASS | ISSUES_FOUND`）与具体 findings。严禁写代码，严禁合并。
+* **人类负责人**：拥有唯一合并权、Phase 阶段推进权和 ADR 批准权。
 
-### 2. Machine-Verifiable Human Approval Gate
+### 2. 机器可校验的人类批准门禁
 
-* The state transition `DESIGN → READY` **strictly requires** explicit human approval.
-* Verbal agreement in chat or PR comments does **not** constitute approval.
-* Approval must be recorded in the task's worklog document (`.worklog/<task-id>.md`) as an exact, standalone line:
+* 状态从 `DESIGN` 进入 `READY` **必须**获得人类明确批准。
+* 口头同意不构成批准。必须在任务卡中写入独立且精确的一行：
   ```yaml
   Approved: Yes
   ```
-* Automated gates and scripts must parse this exact token before allowing the task to transition to `READY`.
+* 缺少该标记时，工程师不得启动编码。
 
-### 3. Wire Model vs. Control Plane Model Separation
+### 3. Wire 传输模型与控制面模型分离
 
-To maintain architectural purity and shield `mcp-governance-core` from upstream SDK churn:
-* **Wire Models**: SDK data types (e.g., `McpSchema.Tool`, raw `Map<String, Object>` payloads) are strictly confined to transport adapters and parsing layers (`mcp-governance-scanner`). They must **never** be exposed in the public API of `mcp-governance-core`.
-* **Control Plane Models**: The core domain operates exclusively on strongly-typed governance entities (e.g., `GovernedTool`, `GovernedResource`, `ScanRule`).
-* **Integrity & Schema Guarantees**:
-  - `inputSchema` in the governance domain must be validated against JSON Schema 2020-12 specifications.
-  - Every governed entity must compute and retain an immutable SHA-256 digest of its canonicalized definition for tamper detection and revision tracking.
-  - Validation runs against instantiated, immutable domain records, bypassing permissive serialization defaults.
+为了保证 `mcp-governance-core` 模块的架构纯洁性，隔离外部 SDK 升级波动：
+* **Wire 传输模型**：SDK 内部数据结构（如 `McpSchema.Tool`、原生 `Map<String, Object>`）严格限制在解析与适配层（`mcp-governance-scanner`）。严禁暴露给核心治理层公开 API。
+* **控制面模型**：核心层使用强类型不可变实体（如 `GovernedTool`、`GovernedResource`、`ScanRule`）。
+* **完整性与 Schema 保证**：
+  - `inputSchema` 必须符合 JSON Schema 2020-12 标准，构造时做非空校验。
+  - 每个受治理的 Tool 必须实时计算并持有 canonical 规范格式的 SHA-256 签名，用于防篡改检测。
 
-### 4. Zero-Trust Static Scan & Safe Execution Policy
+### 4. 零信任静态扫描与安全执行策略
 
-* **Static Scan by Default**: The scanner evaluates configuration files (`mcp.json`, Claude desktop configs, environment definitions) and tool schemas strictly through static parsing and pattern analysis.
-* **STDIO Execution Quarantine**: The scanner **must not** spawn or execute local STDIO commands by default.
-* **Explicit Execution Opt-In**: Dynamic capability discovery (spawning a server process to query `tools/list`) is permitted only when explicitly invoked with the `--allow-execute` CLI flag and must generate an immediate audit warning log.
+* **默认静态解析**：扫描器默认纯静态解析配置文件（`mcp.json`、Claude 配置等），不拉起本地进程。
+* **STDIO 进程隔离**：默认禁止派生子进程执行 STDIO 配置中的命令。
+* **显式执行授权**：只有显式传入 `--allow-execute` 参数时，才允许拉起进程执行动态列举，并必须打印高危审计告警。
 
-### 5. Standardized SARIF 2.1.0 Output Contract
+### 5. 标准化 SARIF 2.1.0 报表契约
 
-* All scan reports must emit compliant OASIS Static Analysis Results Interchange Format (SARIF) version 2.1.0 JSON.
-* Every finding must map to an OWASP MCP Top 10 category (e.g., `MCP01` for secret exposure, `MCP02` for scope creep, `MCP03` for tool poisoning, `MCP05` for command injection).
-* Findings must report severity, rule metadata, file locations, and actionable remediation text without ever leaking secret values or plaintext credentials.
-
----
-
-## Consequences
-
-### Positive
-
-* **Guaranteed Supply Chain & Merge Safety**: Eliminates the risk of rogue AI commits landing on `main` or agents bypassing human review gates.
-* **High Modularity & Framework Independence**: Keeping `mcp-governance-core` pure Java 17 LTS (free of Spring and external framework dependencies) ensures minimal footprint and rapid CLI startup via `picocli`.
-* **Zero Command Injection Risk in CI**: Refusing to execute STDIO processes by default guarantees that running `mcp-governance-cli` against untrusted third-party repositories cannot execute malicious payloads.
-* **Turnkey DevSecOps Integration**: Emitting standard SARIF 2.1.0 enables native integration with GitHub Code Scanning (`github/codeql-action/upload-sarif@v3`) and enterprise SIEM/SARIF consumers.
-
-### Negative / Trade-offs
-
-* **Process Overhead**: Tasks cannot proceed autonomously from design to implementation without waiting for human sign-off (`Approved: Yes`).
-* **Inspection Limitations**: Pure static analysis cannot inspect dynamic tools exposed by servers whose tool lists are calculated at runtime, unless `--allow-execute` is deliberately granted or static schema manifests are provided.
-* **Model Mapping Maintenance**: Maintaining dedicated `Governed*` domain models separate from the MCP Java SDK requires explicit mapping and translation layers.
+* 扫描报告必须输出符合 OASIS SARIF 2.1.0 规范的 JSON 格式。
+* 每一项漏洞与缺陷均须映射到 OWASP MCP Top 10（MCP01 ~ MCP10）。
+* 报告中**绝对严禁输出任何明文 Secret、密钥或 Token 实际值**。
 
 ---
 
-## Compliance & Verification Checkpoints
+## 结果与影响 (Consequences)
 
-### For Reviewer
+### 正向收益 (Positive)
+* **供应链与合并安全保障**：杜绝 AI 自行合并恶意代码或绕过人类把关的风险。
+* **高内聚与极低依赖**：核心模块采用纯 Java 17，无 Spring 依赖，CLI 启动极快。
+* **杜绝 CI 注入隐患**：默认不执行 STDIO 命令，防止恶意 MCP 仓库在扫描时注入执行危险脚本。
+* **开箱即用的 GitHub 联动**：原生支持 GitHub Code Scanning 代码行内高亮安全告警。
 
-1. **Role Boundary Enforcement**:
-   - Verify that Engineer PRs contain **no modifications** to `docs/adr/` or `docs/contracts/`.
-   - Verify that no PR merges directly to `main`.
-2. **Dependency & Layering Invariants**:
-   - Verify `mcp-governance-core` contains zero dependencies on Spring Framework.
-   - Verify that no MCP SDK wire types (e.g., `io.modelcontextprotocol.spec.McpSchema`) leak into `mcp-governance-core` public interfaces.
-3. **Execution Safety**:
-   - Inspect CLI argument parsing to verify that sub-process execution paths for STDIO servers are unreachable unless `--allow-execute` is true.
-4. **Secret Sanitization**:
-   - Verify that log outputs, exception messages, and SARIF property bags redact all tokens, keys, and credentials.
+### 成本与权衡 (Trade-offs)
+* **流程门禁成本**：每个任务从设计到编码必须等待人类签署 `Approved: Yes`，保证了质量与安全但增加了少许等待。
+* **静态分析局限**：在不开启 `--allow-execute` 时，无法直接捕获运行时动态计算生成的 Tool，需依靠静态配置或导出的 Manifest。
 
-### For CI Pipeline
+---
 
-1. **State Machine Verification**:
-   - Verify that `.worklog/<task-id>.md` contains `Approved: Yes` before build verification completes.
-2. **Build and Quality**:
-   - `mvn -B verify` must pass with 100% test success.
-   - `mvn javadoc:javadoc` must complete with zero warnings.
-3. **Self-Scanning (SARIF Bootstrap)**:
-   - The scanner must run against test configurations and dogfood against the repository; any `CRITICAL` finding blocks PR merge.
-   - Generated SARIF files must validate against the official SARIF 2.1.0 JSON Schema.
+## 合规与审查检查点 (Checkpoints)
+
+### 审核员审查项
+1. 检查工程师提交的 PR 是否修改了 `docs/adr/` 或 `docs/contracts/`（若是则直接阻断）。
+2. 确认 `mcp-governance-core` 零 Spring 依赖。
+3. 检查控制台与日志中绝不包含明文密钥。
+
+### CI 门禁项
+1. 状态卡包含 `Approved: Yes`。
+2. `mvn -B verify` 测试通过率 100%。
+3. `mvn javadoc:javadoc` 零警告。
+4. 生成的 SARIF 报表通过 SARIF 2.1.0 JSON Schema 校验。

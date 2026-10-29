@@ -16,7 +16,9 @@
 
 - **JDK 版本**：Java 17 LTS（禁止在核心库使用仅 Java 21+ 支持的非预览语法，保证通用兼容性）
 - **构建工具**：Apache Maven 3.9+（包含 Maven Wrapper `mvnw`）
-- **字符编码**：UTF-8
+- **语言与编码规范**：
+  - 文件编码：全项目强制 **UTF-8**。
+  - **文档语言规范**：所有架构决策（ADR）、设计蓝图、任务说明、审查报告、代码注释必须采用**中文**书写（技术标识符、RFC 原名、代码关键字除外）。对外发布的双语 README（`README.md` 与 `README.zh-CN.md`）遵循中英互链。
 - **模块分层原则**：
   - `mcp-governance-core`：纯 Java，严禁引入 Spring 或重量级框架。
   - `mcp-governance-scanner`：扫描引擎，纯 Java。

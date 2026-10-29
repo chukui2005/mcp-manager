@@ -1,104 +1,104 @@
-# 0001. Maven Multi-Module Architecture and Domain Boundary Baseline
+# 0001. Maven 多模块架构与领域分层边界基线
 
-* **Status**: Proposed
-* **Date**: 2026-10-29
-* **Deciders**: Architect AI, Human Lead
-* **Consulted**: AGENTS.md, .agents/architect.md, docs/adr/0000-dry-run-workflow.md
-
----
-
-## Context
-
-Phase 1 of `mcp-manager` focuses on delivering an embeddable, lightweight, Java-native static scanner CLI (`mcp-governance-cli`) and GitHub Action for inspecting Model Context Protocol (MCP) server manifests (`mcp.json`, Claude desktop configs, tool definitions) against OWASP MCP Top 10 risks.
-
-To achieve long-term modularity, security, and extensibility across subsequent phases (Phase 2: Spring Boot Starter, Phase 3: Governance Gateway), we must establish a rock-solid multi-module Maven structure with strict dependency and domain boundaries:
-
-1. **Spring-Free Core Domain**:
-   If the core domain model and rule interfaces depend on Spring Framework, the CLI and any lightweight embedding agent would carry 30MB+ of transitive runtime dependencies, degrade cold-start times, and prevent embedding in non-Spring environments.
-2. **Wire Model vs. Control Plane Isolation**:
-   MCP Java SDK 2.0 defines wire-level data transfer records (e.g., `McpSchema.Tool` with `Map<String, Object> inputSchema`). Wire protocols deserialize loosely and evolve independently. Leaking raw wire maps or external SDK classes directly into core governance abstractions compromises validation invariants and binds governance rules to wire serialization formats.
-3. **Safe Execution Boundary (MCP05)**:
-   Many MCP server configurations define local STDIO execution commands. A static scanner running in CI/CD or local developer workstations must never execute untrusted local shell processes without explicit opt-in (`--allow-execute`).
-4. **Interoperable Reporting**:
-   Security findings must be structured and exported strictly under the OASIS SARIF 2.1.0 specification for GitHub Code Scanning and enterprise SIEM ingest.
+* **状态**: 提议中 (Proposed)
+* **日期**: 2026-10-29
+* **决策者**: 架构师 AI、人类负责人
+* **参考文档**: AGENTS.md, .agents/architect.md, docs/adr/0000-dry-run-workflow.md
 
 ---
 
-## Decision
+## 背景 (Context)
 
-We establish a 4-submodule Maven multi-module architecture rooted at `io.github.chukui2005:mcp-manager`:
+`mcp-manager` 项目的 Phase 1 阶段核心目标是交付一个轻量、可嵌入、Java 原生的静态扫描命令行工具（`mcp-governance-cli`）与 GitHub Action，用于静态检查 MCP Server 配置文件（`mcp.json`、Claude Desktop 配置、Tool 定义），防御 OWASP MCP Top 10 安全风险。
 
-### 1. Module Hierarchy and Directed Acyclic Graph (DAG)
+为了支撑后续阶段（Phase 2: Spring Boot Starter 运行时治理，Phase 3: 独立网关与策略回放）的无缝演进，必须在 Phase 1 确立清晰稳固的 Maven 多模块架构与依赖隔离边界：
+
+1. **核心领域严禁引入 Spring（零框架侵入）**：
+   若核心模型或扫描规则依赖 Spring，会导致命令行工具打包膨胀至数十兆、冷启动缓慢，且无法轻量嵌入至非 Spring 项目中。
+2. **Wire 传输模型与治理控制面模型强隔离**：
+   MCP Java SDK 的传输实体（如 `McpSchema.Tool` 内部使用宽泛的 `Map<String, Object>`）反序列化宽松且频繁变动。若直接渗透到核心治理实体中，将无法实现严格的构造期校验、模式校验与防篡改摘要。
+3. **安全默认执行策略（防范 MCP05）**：
+   扫描器在 CI 或开发环境运行第三方配置时，默认绝不拉起未受信任的 STDIO 本地进程。
+4. **统一标准报表格式**：
+   扫描结果必须严格遵循 OASIS SARIF 2.1.0 规范，以无缝对接 GitHub Code Scanning 及各类安全大屏。
+
+---
+
+## 架构决策 (Decision)
+
+我们确立基于 `io.github.chukui2005:mcp-manager` 的 4 模块聚合工程体系：
+
+### 1. 模块层次结构与有向无环图 (DAG)
 
 ```
-mcp-manager (Root Aggregator & Parent POM)
+mcp-manager (根聚合工程 / Parent POM)
  │
  ├── mcp-governance-core
- │    └── (Pure Java 17 Domain, Zero Framework Dependencies, SPIs)
+ │    └── (纯 Java 17 领域模型，零框架依赖，SPI 规则接口)
  │
  ├── mcp-governance-scanner
- │    ├── Depends on: mcp-governance-core
- │    └── (Static Parser, AST/Config Evaluator, SARIF 2.1.0 Exporter)
+ │    ├── 依赖: mcp-governance-core
+ │    └── (静态解析引擎、配置评估器、SARIF 2.1.0 序列化器)
  │
  ├── mcp-governance-rules-owasp
- │    ├── Depends on: mcp-governance-core
- │    └── (ScanRule SPI implementations: MCP01, MCP02, MCP03)
+ │    ├── 依赖: mcp-governance-core
+ │    └── (ScanRule SPI 规则具体实现: MCP01, MCP02, MCP03)
  │
  └── mcp-governance-cli
-      ├── Depends on: mcp-governance-scanner, mcp-governance-rules-owasp
-      └── (Picocli Executable, Zero STDIO execution by default, Exit codes)
+      ├── 依赖: mcp-governance-scanner, mcp-governance-rules-owasp
+      └── (基于 Picocli 的命令行入口，装配扫描器，管理输出与退出码)
 ```
 
-**Dependency Rules (Strict Invariants)**:
-- `mcp-governance-core` MUST NOT depend on Spring, Picocli, or any module in this repository.
-- `mcp-governance-scanner` MUST NOT depend on `mcp-governance-cli`. CLI is purely an outer entry shell.
-- `mcp-governance-rules-owasp` depends ONLY on `mcp-governance-core` (plus test dependencies). Rules remain decoupled from scanning engines and CLI drivers.
-- `mcp-governance-cli` aggregates scanner and rule sets into a deployable distribution.
+**严格依赖约束（架构不变量）**：
+- `mcp-governance-core` **严禁依赖 Spring 或 Picocli**，只允许引用最少量的纯工具注解（Jackson 基础注解）与 SLF4J 接口。
+- `mcp-governance-scanner` 严禁反向依赖 `cli`。
+- `mcp-governance-rules-owasp` 仅依赖 `core` 模块，与外部引擎及命令行彻底解耦。
+- `mcp-governance-cli` 作为外层运行宿主，组装引擎与规则集。
 
-### 2. Technology & Version Baseline
+### 2. 技术栈与核心版本基线
 
-- **Java Version**: Java 17 LTS (configured in `maven.compiler.release`).
-- **Build System**: Apache Maven 3.9+.
-- **JSON & Schema Parsing**: Jackson 2.17.2 (`jackson-databind`, `jackson-core`, `jackson-annotations`).
-- **CLI Framework**: Picocli 4.7.6 (`info.picocli:picocli`, annotation processor `picocli-codegen`).
-- **Logging Facade**: SLF4J 2.0.13 (`slf4j-api`). Logback 1.5.6 is scoped strictly to `mcp-governance-cli` and test scopes.
-- **Testing**: JUnit Jupiter 5.10.3 and AssertJ Core 3.26.3 across all test scopes.
-- **JavaDoc**: `maven-javadoc-plugin` with `<failOnWarnings>true</failOnWarnings>`.
+- **Java 版本**: Java 17 LTS（`maven.compiler.release = 17`）。
+- **构建工具**: Apache Maven 3.9+。
+- **文档与编码**: 统一 UTF-8 编码，所有技术文档和注释强制采用**规范中文**。
+- **JSON 与模型映射**: Jackson 2.17.2（`jackson-databind`, `jackson-core`, `jackson-annotations`）。
+- **命令行框架**: Picocli 4.7.6（`info.picocli:picocli`，搭配注解处理器生成预热元数据）。
+- **日志抽象**: SLF4J 2.0.13 API，实现层（Logback 1.5.6）严格局限于 CLI 模块和单元测试环境。
+- **测试框架**: JUnit Jupiter 5.10.3 + AssertJ Core 3.26.3。
+- **Javadoc 门禁**: `maven-javadoc-plugin` 配置 `<failOnWarnings>true</failOnWarnings>`，零告警通过。
 
-### 3. Model Separation (`GovernedTool` & Control Plane)
+### 3. 模型隔离设计 (`GovernedTool` 控制面封装)
 
-- Control plane models reside exclusively in `io.github.chukui2005.mcpgov.core.model`.
-- `GovernedTool` encapsulates:
-  - Canonical `name` and `description`.
-  - Canonical JSON Schema 2020-12 representation of `inputSchema` (validated upon construction; never null).
-  - Computed SHA-256 integrity hash across the canonical representation of the tool.
-  - Risk classification metadata (`Set<RiskTag>`, `RiskLevel`).
-- Wire models (raw JSON from `mcp.json` or transport envelopes) are parsed inside `mcp-governance-scanner` and converted into `GovernedTool` and `GovernedServerConfig` before passing into rule evaluation.
+- 核心模型置于 `io.github.chukui2005.mcpgov.core.model` 包下。
+- `GovernedTool` 采用不可变 Record 设计，包含：
+  - 标准化名称与描述；
+  - 强制非空的 JSON Schema 2020-12 规范对象；
+  - 实时计算并持有的 SHA-256 完整性指纹（用于防范 MCP03 工具篡改与 Rug-pull）；
+  - 风险标签集合（`Set<RiskTag>`）与严重等级（`RiskLevel`）。
+- 外部输入（`mcp.json` 或网络传输的 JSON）由 `scanner` 模块负责解析并校验映射为 `GovernedTool`，绝不直接使用原始 Loose Map。
 
-### 4. Zero-Trust Execution Policy
+### 4. 零信任默认行为
 
-- By default, `mcp-governance-scanner` inspects server configurations solely through static JSON/YAML deserialization and text analysis.
-- The scanner MUST NOT spawn child processes or execute `command` fields found in STDIO server definitions.
-- Dynamic tool discovery via STDIO child process execution is gated strictly behind an explicit CLI switch (`--allow-execute`) and must emit a high-visibility warning log.
-
----
-
-## Consequences
-
-### Positive
-- **Ultra-lightweight & Fast Startup**: `mcp-governance-core` and `mcp-governance-scanner` remain pure Java with minimal runtime footprint.
-- **Future-Proof Reusability**: When Phase 2 introduces `mcp-governance-spring-boot-starter`, it will consume `mcp-governance-core` and `mcp-governance-scanner` seamlessly without dependency conflicts.
-- **Enforced Security by Default**: Zero accidental RCE vulnerability during automated CI scans of untrusted repositories.
-- **Standardized CI Integration**: SARIF 2.1.0 output allows immediate upload via `github/codeql-action/upload-sarif@v3`.
-
-### Negative / Trade-offs
-- **Mapping Overhead**: Requires explicit mapper classes in `scanner` to translate raw configuration structures into immutable domain records.
-- **Limited Runtime Discovery**: Without `--allow-execute`, servers whose tools are generated dynamically at runtime cannot be discovered from static config files alone unless an export schema file is provided.
+- 扫描器默认仅执行静态文本/AST 与 Schema 规则匹配。
+- 扫描 STDIO 类型的 MCP Server 时，默认禁止拉起本地进程。只有显式指定 `--allow-execute` 时才放行，并强制记录警告日志。
 
 ---
 
-## Compliance & Verification Checkpoints
+## 结果与收益 (Consequences)
 
-1. **Dependency Analysis**: `mvn dependency:analyze` and `mvn dependency:tree` must verify zero Spring artifacts in `core`, `scanner`, `rules-owasp`, and `cli`.
-2. **Javadoc Quality**: `mvn javadoc:javadoc` must pass with zero warnings across all modules.
-3. **SARIF Validation**: The output of `mcp-governance-cli` must validate against `docs/contracts/scan-result.schema.json`.
+### 正向收益 (Positive)
+- **极致轻量**：核心库无任何沉重框架，体积小、秒级甚至毫秒级启动。
+- **平滑演进**：后续 Phase 2 的 `mcp-governance-spring-boot-starter` 可以直接以只读依赖方式引入 `core` 与 `scanner`，无依赖冲突风险。
+- **原生安全**：彻底杜绝静态分析过程中因恶意 MCP Server 命令而产生的本地代码执行风险。
+- **自动化集成**：标准 SARIF 2.1.0 报表可直接上传至 GitHub Code Scanning，内联呈现行内修复建议。
+
+### 成本与权衡 (Trade-offs)
+- 增加了静态解析层将外部配置映射到内部强类型 `GovernedTool` 的转换代码成本。
+
+---
+
+## 合规与审查检查点 (Checkpoints)
+
+1. **依赖纯洁性检查**：`mvn dependency:tree` 校验 `core` 模块零 Spring 依赖。
+2. **文档规范检查**：所有设计文档、ADR 必须全部为**中文**。
+3. **Javadoc 检查**：`mvn javadoc:javadoc` 必须零告警通过。
+4. **输出契约检查**：CLI 输出的报表必须符合 `docs/contracts/scan-result.schema.json` 定义。

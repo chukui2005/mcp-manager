@@ -1,8 +1,8 @@
 # Task: TASK-000 - 状态机与多角色协作闭环演练 (Dry-Run)
 
 ## 状态元数据
-- **Status**: READY
-- **Owner**: Engineer
+- **Status**: IN_REVIEW
+- **Owner**: Reviewer
 - **Approved**: Yes
 - **Created**: 2026-10-29
 - **Updated**: 2026-10-29
@@ -22,9 +22,9 @@
 ---
 
 ## 2. 验收标准 (Acceptance Criteria)
-- [ ] 架构师产出演练 ADR (`docs/adr/0000-dry-run-workflow.md`)
-- [ ] 人类在本文档签署 `Approved: Yes`，状态推进至 `READY`
-- [ ] 工程师创建隔离分支并提交占位变更，推进至 `IN_REVIEW`
+- [x] 架构师产出演练 ADR (`docs/adr/0000-dry-run-workflow.md`)
+- [x] 人类在本文档签署 `Approved: Yes`，状态推进至 `READY`
+- [x] 工程师创建隔离分支并提交占位变更，推进至 `IN_REVIEW`
 - [ ] 审核员执行只读检查，给出明确的判定 (`verdict: PASS`)
 - [ ] 人类确认并完成合并，标记为 `DONE`
 
@@ -45,9 +45,13 @@ Approved: Yes
 ---
 
 ## 5. 实现摘要 (Engineer)
-- **PR 链接 / Commit Hash**: 
+- **分支名称 (Branch)**: `task/000-dry-run-verification`
+- **PR 链接 / Commit Hash**: `94f6d66b78ebd9914d171be53e2c3472a8c9248c` (Commit on branch `task/000-dry-run-verification`)
 - **主要变更文件**:
+  - `scripts/verify-versions.ps1`: 演练用环境检测脚本，验证 Git 分支与 HEAD、PowerShell、Java 与 Maven 环境。
+  - `.worklog/TASK-000-dry-run.md`: 更新任务状态流转至 IN_REVIEW，交接给 Reviewer。
 - **测试覆盖说明**:
+  - 手动执行 `powershell -ExecutionPolicy Bypass -File .\scripts\verify-versions.ps1`，成功获取 Git 分支、HEAD commit、Java 21 与 Maven 3.9.9 信息，状态验证通过。
 
 ---
 

@@ -6,9 +6,10 @@
 ## 1. 基础信息与决策
 
 - **项目名称**：`mcp-manager`
+- **GitHub 仓库**：`https://github.com/chukui2005/mcp-manager.git`
 - **开源协议**：`Apache-2.0`
 - **定位**：MCP 的治理与审计层，Java 原生，扫描优先。
-- **Maven GroupId**：`io.github.mcp-manager`（暂定发布基线，待 Central Portal 绑定确认）
+- **Maven GroupId**：`io.github.chukui2005`（基于 GitHub 组织/用户名的官方 Maven Central Portal 标准命名空间）
 - **当前 Phase**：`Phase 1: 静态扫描 CLI + GitHub Action`
 
 ## 2. 运行时与构建环境

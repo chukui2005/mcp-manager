@@ -49,21 +49,24 @@
    - **Starter 自动装配与端到端适配 (`mcp-governance-spring-boot-starter`)**: 扩展 `McpGovernanceProperties` 支持 `acl` 与 `validation` 嵌套属性绑定，通过 `McpGovernanceAutoConfiguration` 条件注入责任链，提供 `McpGovernanceAdapter` 端到端调用拦截模板；
    - **全量门禁**: 全工程 6 个模块、54 个单元/集成测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`，已成功合入 `main`。
 
+8. **`TASK-006` 运行时指标遥测与 Micrometer / Actuator 监控观测集成 (Phase 2 可观测性收官)**:
+   - **架构决策与蓝图**: 产出 [docs/adr/0006-runtime-metrics-and-actuator.md](docs/adr/0006-runtime-metrics-and-actuator.md)、[docs/architecture/0006-blueprint.md](docs/architecture/0006-blueprint.md) 及 [docs/contracts/metrics-snapshot.schema.json](docs/contracts/metrics-snapshot.schema.json)；
+   - **纯 Java 核心遥测抽象 (`mcp-governance-core`)**: 实现 `InvocationStatus`、`ToolMetricsSnapshot`、`McpMetricsSnapshot`、`McpMetricsCollector` SPI，以及基于 `LongAdder` 的无锁并发指标收集器 `InMemoryMcpMetricsCollector`；
+   - **最外层拦截器编排**: 实现 `MetricsMcpInterceptor` (Order: -100)，处于责任链最外围，100% 覆盖并捕获成功调用、Tool ACL 阻断 (OWASP MCP02) 与参数校验违规 (OWASP MCP05)，杜绝监控逃逸；
+   - **Starter 自动装配与优雅降级 (`mcp-governance-spring-boot-starter`)**: 声明可选依赖，实现 `MicrometerMcpMetricsCollector`（多维度绑定计数器与执行计时器）与 Spring Boot Actuator 端点 `McpGovernanceEndpoint`（`/actuator/mcpGovernance`），在无监控组件环境中平滑无损降级；
+   - **全量门禁**: 全工程 6 个模块、69 个单元/集成测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`。
+
 ---
 
-## 3. 下一个任务目标：TASK-006 (运行时指标遥测与 Micrometer / Actuator 监控观测集成)
+## 3. 下一个任务目标：TASK-007 (运行时审计日志持久化 / 结构化导出与 Phase 2 收官)
 
-### 任务名称：运行时治理指标遥测与 Spring Boot Actuator 端点观测集成
-
+### 任务名称：运行时审计记录结构化导出与事件监听器体系
 - **所属阶段**: Phase 2 (运行时治理与 Spring Boot Starter)
 - **模块重点**: `mcp-governance-core` 与 `mcp-governance-spring-boot-starter`
 - **核心需求**:
-  1. **纯 Java 遥测与计数抽象**:
-     - 在 `core` 定义通用治理指标收集契约（如工具调用次数、耗时直方图、阻断率、违规规则分类计数器）；
-  2. **Actuator 与 Micrometer 集成**:
-     - 在 Starter 中通过条件装配（`@ConditionalOnClass(MeterRegistry.class)`）自动绑定 Spring Boot Actuator，暴露 `/actuator/mcp-governance` 端点或指标数据；
-  3. **自动化测试与端到端验证**:
-     - 验证启用/未启用 Actuator 时的优雅降级，验证指标埋点计数准确性。
+  1. **审计事件发布/订阅机制**: 在 `core` 定义纯 Java `AuditEventPublisher` 与 `AuditEventListener` SPI 抽象；
+  2. **结构化日志与事件集成**: 在 Starter 中集成 Spring ApplicationEventPublisher 广播治理事件，支持将敏感调用脱敏记录持久化或推送到外部审计管道（应对 OWASP MCP01/MCP08）；
+  3. **自动化测试与端到端验证**: 确保无 Spring 依赖的单体与 Spring Boot 容器均可捕获审计事件。
 
 ---
 
@@ -71,18 +74,18 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1（静态扫描与 GitHub Action）与 TASK-004、TASK-005（Spring Boot Starter 模块脚手架、运行时请求拦截契约设计及 Tool ACL 动态运行时策略拦截器集）已全部收官并合入 main 分支。
+Phase 1 与 TASK-004、TASK-005、TASK-006（运行时拦截契约、Tool ACL 权限治理、运行时指标遥测与 Actuator 端点集成）已全部收官并合入 main 分支。
 请你严格阅读仓库根目录的以下核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
 3. docs/environment-baseline.md（技术与版本基线）
-4. docs/adr/0005-runtime-policy-and-tool-acl.md（动态策略 ADR）
-5. docs/architecture/0005-blueprint.md（动态策略蓝图）
+4. docs/adr/0006-runtime-metrics-and-actuator.md（运行时指标 ADR）
+5. docs/architecture/0006-blueprint.md（运行时指标蓝图）
 
 【你的职责】：
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-006：运行时治理指标遥测与 Spring Boot Actuator 端点观测集成（工具调用耗时分布、阻断统计与可观测性体系）。
-请分派架构师队友产出 ADR 0006 与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
+启动 TASK-007：运行时审计记录结构化导出与事件监听器体系（应对 OWASP MCP01/MCP08 安全审计溯源要求）。
+请分派架构师队友产出 ADR 0007 与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
 ```

@@ -7,6 +7,7 @@ import io.github.chukui2005.mcpgov.core.runtime.McpGovernanceException;
 import io.github.chukui2005.mcpgov.core.runtime.McpInvocationContext;
 import io.github.chukui2005.mcpgov.core.runtime.McpInvocationResult;
 import io.github.chukui2005.mcpgovernance.gateway.adapter.GatewayExecutionAdapter;
+import io.github.chukui2005.mcpgovernance.gateway.aggregation.ToolAggregator;
 import io.github.chukui2005.mcpgovernance.gateway.config.GatewayServerProperties;
 import io.github.chukui2005.mcpgovernance.gateway.config.RouteDefinition;
 import io.github.chukui2005.mcpgovernance.gateway.model.JsonRpcError;
@@ -48,6 +49,7 @@ public class McpRpcController {
     private final GatewayExecutionAdapter executionAdapter;
     private final GatewayServerProperties properties;
     private final ObjectMapper objectMapper;
+    private final ToolAggregator toolAggregator;
 
     /**
      * 构造函数注入依赖。
@@ -56,15 +58,18 @@ public class McpRpcController {
      * @param executionAdapter 网关执行适配器
      * @param properties       网关配置属性
      * @param objectMapper     JSON 对象映射器
+     * @param toolAggregator   工具聚合器
      */
     public McpRpcController(RouteManager routeManager,
                             GatewayExecutionAdapter executionAdapter,
                             GatewayServerProperties properties,
-                            ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            ToolAggregator toolAggregator) {
         this.routeManager = routeManager;
         this.executionAdapter = executionAdapter;
         this.properties = properties;
         this.objectMapper = objectMapper != null ? objectMapper : new ObjectMapper();
+        this.toolAggregator = toolAggregator;
     }
 
     /**
@@ -92,7 +97,7 @@ public class McpRpcController {
             case "initialize":
                 return Mono.just(handleInitialize(id, request.getParams()));
             case "tools/list":
-                return Mono.just(handleToolsList(id, request.getParams()));
+                return handleToolsList(id, request.getParams());
             case "tools/call":
                 return handleToolsCall(id, request.getParams());
             default:
@@ -132,36 +137,30 @@ public class McpRpcController {
 
     /**
      * 处理 tools/list 聚合工具发现请求。
-     * 聚合所有下游路由的虚拟工具信息，注入命名空间前缀。
+     * 调用 ToolAggregator 并发拉取并聚合所有下游路由的工具信息，注入命名空间前缀并执行租户 ACL 过滤。
      *
      * @param id     请求标识
      * @param params 请求参数
-     * @return 工具列表响应
+     * @return 响应式工具列表响应
      */
-    private JsonRpcResponse handleToolsList(Object id, Object params) {
-        List<RouteDefinition> routes = routeManager.getAllRoutes();
-        List<Map<String, Object>> tools = new ArrayList<>();
-
-        for (RouteDefinition route : routes) {
-            String prefix = route.getPrefix();
-            String serverId = route.getId();
-
-            Map<String, Object> tool = new HashMap<>();
-            String aggregatedToolName = prefix + "status";
-            tool.put("name", aggregatedToolName);
-            tool.put("description", "下游服务 [" + serverId + "] 的状态检测虚拟工具 (前缀: " + prefix + ")");
-
-            Map<String, Object> inputSchema = new HashMap<>();
-            inputSchema.put("type", "object");
-            inputSchema.put("properties", Collections.emptyMap());
-            tool.put("inputSchema", inputSchema);
-
-            tools.add(tool);
+    private Mono<JsonRpcResponse> handleToolsList(Object id, Object params) {
+        if (toolAggregator == null) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("tools", Collections.emptyList());
+            return Mono.just(JsonRpcResponse.success(id, result));
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("tools", tools);
-        return JsonRpcResponse.success(id, result);
+        return toolAggregator.aggregateTools()
+                .map(tools -> {
+                    List<Map<String, Object>> formattedTools = toolAggregator.formatMcpTools(tools);
+                    Map<String, Object> result = new HashMap<>();
+                    result.put("tools", formattedTools);
+                    return JsonRpcResponse.success(id, result);
+                })
+                .onErrorResume(e -> {
+                    log.error("聚合 tools/list 失败: {}", e.getMessage(), e);
+                    return Mono.just(JsonRpcResponse.error(id, JsonRpcError.internalError("tools/list 聚合失败: " + e.getMessage())));
+                });
     }
 
     /**

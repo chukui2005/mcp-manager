@@ -1,0 +1,15 @@
+server:
+  port: 8080
+  address: 127.0.0.1
+
+mcp:
+  governance:
+    gateway:
+      host: "127.0.0.1"
+      port: 8080
+      request-timeout-ms: 30000
+      upstreams:
+        - id: "demo-service"
+          protocol: "http"
+          prefix: "demo_"
+          uri: "http://127.0.0.1:8081/mcp"

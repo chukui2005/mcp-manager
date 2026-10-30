@@ -1,7 +1,7 @@
 # 项目换届与会话交接指南 (Handover Guide)
 
 > **当前维护者**: MCP Governance 统筹中枢  
-> **更新时间**: 2026-10-29  
+> **更新时间**: 2026-10-30  
 > **当前版本**: v0.2.0-alpha  
 > **对应阶段**: Phase 2 (运行时治理与 Spring Boot Starter)
 
@@ -41,27 +41,29 @@
    - 产出 ADR 0003 与 Blueprint 0003，实现 Shade Fat-JAR、Composite Action 封装与 CI 自举扫描；
    - 交付中英双语 `README.md` 与 `README.zh-CN.md`。
 6. **`TASK-004` Spring Boot Starter 脚手架与运行时拦截契约设计 (Phase 2 启航收官)**:
-   - **架构决策与设计**: 产出 [docs/adr/0004-spring-boot-starter-and-runtime-interception.md](docs/adr/0004-spring-boot-starter-and-runtime-interception.md) 与 [docs/architecture/0004-blueprint.md](docs/architecture/0004-blueprint.md)；
-   - **纯 Java 核心拦截契约 (`mcp-governance-core`)**: 实现不可变上下文 `McpInvocationContext`、调用结果 `McpInvocationResult`、拦截器接口 `McpInterceptor`、责任链执行器 `McpInterceptorChain` 与治理异常体系，坚守零 Spring 依赖红线，严格隔离 Wire 传输模型；
-   - **Starter 自动装配 (`mcp-governance-spring-boot-starter`)**: 基于 Spring Boot 3.3.4，引入 `@ConditionalOnClass`、`@ConditionalOnMissingBean`、`@ConditionalOnProperty` 条件装配，提供开箱即用的敏感参数掩码脱敏与调用审计拦截器 `LoggingMcpInterceptor`；
-   - **全量门禁**: 全工程 6 个模块、40 个单元测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`，已成功合入 `main`。
+   - 产出 ADR 0004 与 Blueprint 0004，建立纯 Java 不可变上下文模型与责任链拦截器契约；
+   - 实现 Spring Boot 3.3.4 条件装配与敏感入参脱敏审计拦截器 `LoggingMcpInterceptor`。
+7. **`TASK-005` 运行时策略拦截器集实现与 Spring Boot 深度集成 (Phase 2 核心收官)**:
+   - **架构决策与蓝图**: 产出 [docs/adr/0005-runtime-policy-and-tool-acl.md](docs/adr/0005-runtime-policy-and-tool-acl.md)、[docs/architecture/0005-blueprint.md](docs/architecture/0005-blueprint.md) 及 [docs/contracts/runtime-policy.schema.json](docs/contracts/runtime-policy.schema.json)；
+   - **纯 Java 策略模型与拦截器 (`mcp-governance-core`)**: 实现 `AclMode`（WHITELIST/BLACKLIST）、`ToolAclPolicy`（支持通配符 `file_*`、`db:*` 与正则缓存）、`ParameterValidationRule`、`ToolAclMcpInterceptor` (Order: 100，OWASP MCP02 治理) 与 `ParameterValidationMcpInterceptor` (Order: 200，防越权入参与路径遍历正则拦截)；
+   - **Starter 自动装配与端到端适配 (`mcp-governance-spring-boot-starter`)**: 扩展 `McpGovernanceProperties` 支持 `acl` 与 `validation` 嵌套属性绑定，通过 `McpGovernanceAutoConfiguration` 条件注入责任链，提供 `McpGovernanceAdapter` 端到端调用拦截模板；
+   - **全量门禁**: 全工程 6 个模块、54 个单元/集成测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`，已成功合入 `main`。
 
 ---
 
-## 3. 下一个任务目标：TASK-005 (运行时策略拦截器实现与 OWASP MCP02 动态治理)
+## 3. 下一个任务目标：TASK-006 (运行时指标遥测与 Micrometer / Actuator 监控观测集成)
 
-### 任务名称：动态运行时策略拦截器集实现与 Spring Boot 深度集成
+### 任务名称：运行时治理指标遥测与 Spring Boot Actuator 端点观测集成
 
 - **所属阶段**: Phase 2 (运行时治理与 Spring Boot Starter)
-- **模块重点**: `mcp-governance-spring-boot-starter` 与 `mcp-governance-core`
+- **模块重点**: `mcp-governance-core` 与 `mcp-governance-spring-boot-starter`
 - **核心需求**:
-  1. **运行时访问控制与限流/权限拦截器**:
-     - 基于不可变调用上下文 `McpInvocationContext`，实现针对工具调用权限（Tool ACL / 白名单 / 动态黑名单）的拦截器（映射 OWASP MCP02 权限蔓延治理）；
-     - 实现动态参数规则校验拦截器（防提示注入与越权入参）；
-  2. **端到端适配与集成演示**:
-     - 提供简易测试 Mock 服务或 MCP 客户端适配器示例，展示如何在 Controller/Service 运行时切面调用 `McpInterceptorChain` 实现端到端鉴权与审计；
-  3. **自动化测试与门禁**:
-     - 编写多场景拦截与阻断集成测试，确保 Fail-Fast 生效与脱敏报表输出。
+  1. **纯 Java 遥测与计数抽象**:
+     - 在 `core` 定义通用治理指标收集契约（如工具调用次数、耗时直方图、阻断率、违规规则分类计数器）；
+  2. **Actuator 与 Micrometer 集成**:
+     - 在 Starter 中通过条件装配（`@ConditionalOnClass(MeterRegistry.class)`）自动绑定 Spring Boot Actuator，暴露 `/actuator/mcp-governance` 端点或指标数据；
+  3. **自动化测试与端到端验证**:
+     - 验证启用/未启用 Actuator 时的优雅降级，验证指标埋点计数准确性。
 
 ---
 
@@ -69,18 +71,18 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1（静态扫描与 GitHub Action）与 TASK-004（Spring Boot Starter 模块脚手架与运行时请求拦截契约设计）已全部收官并合入 main 分支。
+Phase 1（静态扫描与 GitHub Action）与 TASK-004、TASK-005（Spring Boot Starter 模块脚手架、运行时请求拦截契约设计及 Tool ACL 动态运行时策略拦截器集）已全部收官并合入 main 分支。
 请你严格阅读仓库根目录的以下核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
 3. docs/environment-baseline.md（技术与版本基线）
-4. docs/adr/0004-spring-boot-starter-and-runtime-interception.md（运行时契约 ADR）
-5. docs/architecture/0004-blueprint.md（运行时实施蓝图）
+4. docs/adr/0005-runtime-policy-and-tool-acl.md（动态策略 ADR）
+5. docs/architecture/0005-blueprint.md（动态策略蓝图）
 
 【你的职责】：
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-005：动态运行时策略拦截器集实现与 Spring Boot 深度集成（Tool ACL 白名单治理与动态策略执行）。
-请分派架构师队友产出 ADR 0005 与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
+启动 TASK-006：运行时治理指标遥测与 Spring Boot Actuator 端点观测集成（工具调用耗时分布、阻断统计与可观测性体系）。
+请分派架构师队友产出 ADR 0006 与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
 ```

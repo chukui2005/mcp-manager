@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chukui2005/mcp-manager/docs/contracts/runtime-policy.schema.json",
+  "title": "McpGovernanceRuntimePolicy",
+  "description": "MCP 运行时治理策略配置与 Tool ACL 规则契约规范 (JSON Schema 2020-12)",
+  "type": "object",
+  "properties": {
+    "acl": {
+      "type": "object",
+      "description": "Tool ACL 访问控制策略，治理 OWASP MCP02 权限蔓延",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否启用 Tool ACL 拦截治理"
+        },
+        "defaultMode": {
+          "type": "string",
+          "enum": ["WHITELIST", "BLACKLIST"],
+          "default": "WHITELIST",
+          "description": "ACL 匹配模式：WHITELIST (白名单允许/默认拒绝) 或 BLACKLIST (黑名单拦截/默认放行)"
+        },
+        "allowedTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "允许执行的工具名称或通配符模式列表 (例如 'calculator', 'file_*')"
+        },
+        "blockedTools": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "禁止执行的工具名称或通配符模式列表 (例如 'system_exec', 'bash')"
+        }
+      },
+      "additionalProperties": false
+    },
+    "validation": {
+      "type": "object",
+      "description": "工具调用入参校验规则集",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否启用参数校验拦截"
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "toolPattern": {
+                "type": "string",
+                "default": "*",
+                "description": "适用的工具名称模式 (支持 '*' 通配)"
+              },
+              "parameter": {
+                "type": "string",
+                "description": "待校验的入参键名"
+              },
+              "required": {
+                "type": "boolean",
+                "default": false,
+                "description": "是否为必填入参"
+              },
+              "disallowedRegex": {
+                "type": "string",
+                "description": "违规或禁用值的正则表达式 (命中则阻断，如路径遍历 '.*(\\.\\./|~).*')"
+              },
+              "requiredRegex": {
+                "type": "string",
+                "description": "必须满足的正则表达式 (未命中则阻断)"
+              },
+              "errorMessage": {
+                "type": "string",
+                "description": "校验未通过时的安全阻断提示"
+              }
+            },
+            "required": ["parameter"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

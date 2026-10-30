@@ -2,13 +2,21 @@ package io.github.chukui2005.mcpgov.spring.boot.autoconfigure;
 
 import io.github.chukui2005.mcpgov.core.runtime.McpInterceptor;
 import io.github.chukui2005.mcpgov.core.runtime.McpInterceptorChain;
+import io.github.chukui2005.mcpgov.core.runtime.metrics.InMemoryMcpMetricsCollector;
+import io.github.chukui2005.mcpgov.core.runtime.metrics.McpMetricsCollector;
+import io.github.chukui2005.mcpgov.core.runtime.metrics.MetricsMcpInterceptor;
 import io.github.chukui2005.mcpgov.core.runtime.policy.ParameterValidationMcpInterceptor;
 import io.github.chukui2005.mcpgov.core.runtime.policy.ParameterValidationRule;
 import io.github.chukui2005.mcpgov.core.runtime.policy.ToolAclMcpInterceptor;
 import io.github.chukui2005.mcpgov.core.runtime.policy.ToolAclPolicy;
+import io.github.chukui2005.mcpgov.spring.boot.actuator.McpGovernanceEndpoint;
 import io.github.chukui2005.mcpgov.spring.boot.interceptor.LoggingMcpInterceptor;
+import io.github.chukui2005.mcpgov.spring.boot.metrics.MicrometerMcpMetricsCollector;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -87,6 +95,62 @@ public class McpGovernanceAutoConfiguration {
     @ConditionalOnProperty(prefix = "mcp.governance.audit", name = "enabled", havingValue = "true", matchIfMissing = true)
     public LoggingMcpInterceptor loggingMcpInterceptor(McpGovernanceProperties properties) {
         return new LoggingMcpInterceptor(properties);
+    }
+
+    /**
+     * 当开启指标遥测且容器中不存在自定义 McpMetricsCollector 时，注册默认的度量收集器。
+     * 若环境中存在 MeterRegistry 且启用了 micrometer-enabled，则桥接 Micrometer；否则降级为 InMemory 收集器。
+     *
+     * @param properties 治理配置属性
+     * @param meterRegistryProvider Micrometer 注册表提供者
+     * @return 运行时指标收集器
+     */
+    @Bean
+    @ConditionalOnMissingBean(McpMetricsCollector.class)
+    @ConditionalOnProperty(prefix = "mcp.governance.metrics", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public McpMetricsCollector mcpMetricsCollector(
+            McpGovernanceProperties properties,
+            ObjectProvider<MeterRegistry> meterRegistryProvider) {
+        MeterRegistry meterRegistry = null;
+        try {
+            meterRegistry = meterRegistryProvider.getIfAvailable();
+        } catch (NoClassDefFoundError ignored) {
+            // 环境中未引入 micrometer-core，安全忽略
+        }
+
+        boolean useMicrometer = properties.getMetrics().isMicrometerEnabled() && meterRegistry != null;
+        if (useMicrometer) {
+            return new MicrometerMcpMetricsCollector(meterRegistry);
+        }
+        return new InMemoryMcpMetricsCollector();
+    }
+
+    /**
+     * 当开启指标遥测且容器中不存在自定义 MetricsMcpInterceptor 时，注册默认的指标拦截器。
+     *
+     * @param collector 运行时指标收集器
+     * @return 默认指标拦截器
+     */
+    @Bean
+    @ConditionalOnMissingBean(MetricsMcpInterceptor.class)
+    @ConditionalOnProperty(prefix = "mcp.governance.metrics", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public MetricsMcpInterceptor metricsMcpInterceptor(McpMetricsCollector collector) {
+        return new MetricsMcpInterceptor(collector);
+    }
+
+    /**
+     * 当环境中存在 Actuator Endpoint 且开启配置与指标收集器时，注册 /actuator/mcpGovernance 端点。
+     *
+     * @param collector 运行时指标收集器
+     * @return Actuator 监控端点
+     */
+    @Bean
+    @ConditionalOnClass(Endpoint.class)
+    @ConditionalOnBean(McpMetricsCollector.class)
+    @ConditionalOnMissingBean(McpGovernanceEndpoint.class)
+    @ConditionalOnProperty(prefix = "mcp.governance.metrics", name = "export-to-actuator", havingValue = "true", matchIfMissing = true)
+    public McpGovernanceEndpoint mcpGovernanceEndpoint(McpMetricsCollector collector) {
+        return new McpGovernanceEndpoint(collector);
     }
 
     /**

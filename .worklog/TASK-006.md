@@ -2,7 +2,7 @@
 
 > **所属阶段**: Phase 2 (运行时治理与 Spring Boot Starter)  
 > **任务负责人**: architect (架构师) -> engineer (工程师) -> reviewer (审核员) -> 人类 (合并)  
-> **状态**: READY_TO_LAND  
+> **状态**: DONE  
 
 ---
 
@@ -33,7 +33,7 @@
 - [x] **READY** (人类签署 Approved: Yes，工程师就绪隔离分支开发)
 - [x] **IN_REVIEW** (工程师完成实现、单测与 CI，提交 PR 并请求审查)
 - [x] **READY_TO_LAND** (审核员审查通过，给出 verdict: PASS)
-- [ ] **DONE** (人类确认合并到 main 分支)
+- [x] **DONE** (人类确认合并到 main 分支)
 
 ---
 

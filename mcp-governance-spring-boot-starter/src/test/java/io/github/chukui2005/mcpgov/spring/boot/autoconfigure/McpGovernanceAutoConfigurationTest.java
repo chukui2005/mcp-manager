@@ -48,10 +48,11 @@ class McpGovernanceAutoConfigurationTest {
             assertThat(context).doesNotHaveBean(ParameterValidationMcpInterceptor.class);
 
             McpInterceptorChain chain = context.getBean(McpInterceptorChain.class);
-            // ToolAcl (100) -> Logging (1000)
-            assertThat(chain.getInterceptors()).hasSize(2);
-            assertThat(chain.getInterceptors().get(0)).isInstanceOf(ToolAclMcpInterceptor.class);
-            assertThat(chain.getInterceptors().get(1)).isInstanceOf(LoggingMcpInterceptor.class);
+            // Metrics (-100) -> ToolAcl (100) -> Logging (1000)
+            assertThat(chain.getInterceptors()).hasSize(3);
+            assertThat(chain.getInterceptors().get(0)).isInstanceOf(io.github.chukui2005.mcpgov.core.runtime.metrics.MetricsMcpInterceptor.class);
+            assertThat(chain.getInterceptors().get(1)).isInstanceOf(ToolAclMcpInterceptor.class);
+            assertThat(chain.getInterceptors().get(2)).isInstanceOf(LoggingMcpInterceptor.class);
         });
     }
 
@@ -74,11 +75,12 @@ class McpGovernanceAutoConfigurationTest {
             assertThat(context).hasSingleBean(LoggingMcpInterceptor.class);
 
             McpInterceptorChain chain = context.getBean(McpInterceptorChain.class);
-            // 顺序: ToolAcl(100) -> ParameterValidation(200) -> Logging(1000)
-            assertThat(chain.getInterceptors()).hasSize(3);
-            assertThat(chain.getInterceptors().get(0)).isInstanceOf(ToolAclMcpInterceptor.class);
-            assertThat(chain.getInterceptors().get(1)).isInstanceOf(ParameterValidationMcpInterceptor.class);
-            assertThat(chain.getInterceptors().get(2)).isInstanceOf(LoggingMcpInterceptor.class);
+            // 顺序: Metrics(-100) -> ToolAcl(100) -> ParameterValidation(200) -> Logging(1000)
+            assertThat(chain.getInterceptors()).hasSize(4);
+            assertThat(chain.getInterceptors().get(0)).isInstanceOf(io.github.chukui2005.mcpgov.core.runtime.metrics.MetricsMcpInterceptor.class);
+            assertThat(chain.getInterceptors().get(1)).isInstanceOf(ToolAclMcpInterceptor.class);
+            assertThat(chain.getInterceptors().get(2)).isInstanceOf(ParameterValidationMcpInterceptor.class);
+            assertThat(chain.getInterceptors().get(3)).isInstanceOf(LoggingMcpInterceptor.class);
 
             // 验证端到端 Adapter 调用阻断
             McpGovernanceAdapter adapter = new McpGovernanceAdapter(chain);
@@ -158,11 +160,12 @@ class McpGovernanceAutoConfigurationTest {
                     assertThat(context).hasSingleBean(McpInterceptorChain.class);
                     McpInterceptorChain chain = context.getBean(McpInterceptorChain.class);
 
-                    // 默认包含 CustomInterceptor(10), ToolAcl(100), Logging(1000)
-                    assertThat(chain.getInterceptors()).hasSize(3);
-                    assertThat(chain.getInterceptors().get(0)).isInstanceOf(CustomTestInterceptor.class);
-                    assertThat(chain.getInterceptors().get(1)).isInstanceOf(ToolAclMcpInterceptor.class);
-                    assertThat(chain.getInterceptors().get(2)).isInstanceOf(LoggingMcpInterceptor.class);
+                    // 默认包含 Metrics(-100), CustomInterceptor(10), ToolAcl(100), Logging(1000)
+                    assertThat(chain.getInterceptors()).hasSize(4);
+                    assertThat(chain.getInterceptors().get(0)).isInstanceOf(io.github.chukui2005.mcpgov.core.runtime.metrics.MetricsMcpInterceptor.class);
+                    assertThat(chain.getInterceptors().get(1)).isInstanceOf(CustomTestInterceptor.class);
+                    assertThat(chain.getInterceptors().get(2)).isInstanceOf(ToolAclMcpInterceptor.class);
+                    assertThat(chain.getInterceptors().get(3)).isInstanceOf(LoggingMcpInterceptor.class);
                 });
     }
 

@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chukui2005/mcp-manager/docs/contracts/metrics-snapshot.schema.json",
+  "title": "McpMetricsSnapshot",
+  "description": "MCP 运行时治理指标快照数据契约 (对应 OWASP MCP08 遥测契约规范)",
+  "type": "object",
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "快照生成时间戳 (ISO-8601)"
+    },
+    "totalInvocations": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "工具调用总次数"
+    },
+    "totalSuccess": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "成功完成的调用总数"
+    },
+    "totalAccessDenied": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "因 Tool ACL 策略拦截被拒绝的调用总数 (OWASP MCP02)"
+    },
+    "totalValidationFailed": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "因入参校验违规被阻断的调用总数 (OWASP MCP05)"
+    },
+    "totalError": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "工具执行失败或未捕获系统异常总数"
+    },
+    "overallSuccessRate": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "全局成功率 (0.0 - 1.0)"
+    },
+    "overallDeniedRate": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0,
+      "description": "全局阻断率 (0.0 - 1.0)"
+    },
+    "toolMetrics": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "toolName": {
+            "type": "string",
+            "description": "工具唯一名称"
+          },
+          "totalInvocations": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "successCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "accessDeniedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "validationFailedCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "errorCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "totalDurationMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxDurationMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "averageDurationMs": {
+            "type": "number",
+            "minimum": 0.0
+          },
+          "lastFailureReason": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": [
+          "toolName",
+          "totalInvocations",
+          "successCount",
+          "accessDeniedCount",
+          "validationFailedCount",
+          "errorCount",
+          "totalDurationMs",
+          "maxDurationMs",
+          "averageDurationMs"
+        ]
+      },
+      "description": "按单个工具名称聚合的度量明细集合"
+    }
+  },
+  "required": [
+    "timestamp",
+    "totalInvocations",
+    "totalSuccess",
+    "totalAccessDenied",
+    "totalValidationFailed",
+    "totalError",
+    "overallSuccessRate",
+    "overallDeniedRate",
+    "toolMetrics"
+  ],
+  "additionalProperties": false
+}

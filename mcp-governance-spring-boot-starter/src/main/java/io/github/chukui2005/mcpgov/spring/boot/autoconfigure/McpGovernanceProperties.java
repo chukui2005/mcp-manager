@@ -39,6 +39,11 @@ public class McpGovernanceProperties {
     private ValidationProperties validation = new ValidationProperties();
 
     /**
+     * 运行时指标遥测与 Actuator 端点相关配置。
+     */
+    private MetricsProperties metrics = new MetricsProperties();
+
+    /**
      * 获取治理总开关状态。
      *
      * @return 是否启用治理
@@ -126,6 +131,24 @@ public class McpGovernanceProperties {
      */
     public void setValidation(ValidationProperties validation) {
         this.validation = validation;
+    }
+
+    /**
+     * 获取运行时指标遥测与端点配置。
+     *
+     * @return 指标遥测配置
+     */
+    public MetricsProperties getMetrics() {
+        return metrics;
+    }
+
+    /**
+     * 设置运行时指标遥测与端点配置。
+     *
+     * @param metrics 指标遥测配置
+     */
+    public void setMetrics(MetricsProperties metrics) {
+        this.metrics = metrics;
     }
 
     /**
@@ -494,6 +517,81 @@ public class McpGovernanceProperties {
             public void setErrorMessage(String errorMessage) {
                 this.errorMessage = errorMessage;
             }
+        }
+    }
+
+    /**
+     * 运行时指标遥测配置属性。
+     */
+    public static class MetricsProperties {
+
+        /**
+         * 是否开启运行时指标遥测与收集，默认为 true。
+         */
+        private boolean enabled = true;
+
+        /**
+         * 当环境中存在 MeterRegistry 时是否自动绑定 Micrometer 度量，默认为 true。
+         */
+        private boolean micrometerEnabled = true;
+
+        /**
+         * 是否注册 Spring Boot Actuator 治理端点（/actuator/mcpGovernance），默认为 true。
+         */
+        private boolean exportToActuator = true;
+
+        /**
+         * 获取是否启用运行时指标遥测。
+         *
+         * @return 是否启用
+         */
+        public boolean isEnabled() {
+            return enabled;
+        }
+
+        /**
+         * 设置是否启用运行时指标遥测。
+         *
+         * @param enabled 是否启用
+         */
+        public void setEnabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        /**
+         * 获取是否启用 Micrometer 绑定。
+         *
+         * @return 是否启用 Micrometer
+         */
+        public boolean isMicrometerEnabled() {
+            return micrometerEnabled;
+        }
+
+        /**
+         * 设置是否启用 Micrometer 绑定。
+         *
+         * @param micrometerEnabled 是否启用 Micrometer
+         */
+        public void setMicrometerEnabled(boolean micrometerEnabled) {
+            this.micrometerEnabled = micrometerEnabled;
+        }
+
+        /**
+         * 获取是否暴露 Actuator 端点。
+         *
+         * @return 是否暴露端点
+         */
+        public boolean isExportToActuator() {
+            return exportToActuator;
+        }
+
+        /**
+         * 设置是否暴露 Actuator 端点。
+         *
+         * @param exportToActuator 是否暴露端点
+         */
+        public void setExportToActuator(boolean exportToActuator) {
+            this.exportToActuator = exportToActuator;
         }
     }
 }

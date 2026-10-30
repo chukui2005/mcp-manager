@@ -2,6 +2,10 @@ package io.github.chukui2005.mcpgov.spring.boot.autoconfigure;
 
 import io.github.chukui2005.mcpgov.core.runtime.McpInterceptor;
 import io.github.chukui2005.mcpgov.core.runtime.McpInterceptorChain;
+import io.github.chukui2005.mcpgov.core.runtime.policy.ParameterValidationMcpInterceptor;
+import io.github.chukui2005.mcpgov.core.runtime.policy.ParameterValidationRule;
+import io.github.chukui2005.mcpgov.core.runtime.policy.ToolAclMcpInterceptor;
+import io.github.chukui2005.mcpgov.core.runtime.policy.ToolAclPolicy;
 import io.github.chukui2005.mcpgov.spring.boot.interceptor.LoggingMcpInterceptor;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -27,6 +31,49 @@ public class McpGovernanceAutoConfiguration {
      * 默认无参构造函数。
      */
     public McpGovernanceAutoConfiguration() {
+    }
+
+    /**
+     * 当开启 Tool ACL 且容器中不存在自定义 ToolAclMcpInterceptor 时，注册默认的 ACL 拦截器。
+     *
+     * @param properties 治理配置属性
+     * @return 默认 Tool ACL 拦截器
+     */
+    @Bean
+    @ConditionalOnMissingBean(ToolAclMcpInterceptor.class)
+    @ConditionalOnProperty(prefix = "mcp.governance.acl", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public ToolAclMcpInterceptor toolAclMcpInterceptor(McpGovernanceProperties properties) {
+        McpGovernanceProperties.AclProperties acl = properties.getAcl();
+        ToolAclPolicy policy = new ToolAclPolicy(
+            acl.isEnabled(),
+            acl.getDefaultMode(),
+            acl.getAllowedTools(),
+            acl.getBlockedTools()
+        );
+        return new ToolAclMcpInterceptor(policy);
+    }
+
+    /**
+     * 当开启参数校验且容器中不存在自定义 ParameterValidationMcpInterceptor 时，注册默认的参数校验拦截器。
+     *
+     * @param properties 治理配置属性
+     * @return 默认参数校验拦截器
+     */
+    @Bean
+    @ConditionalOnMissingBean(ParameterValidationMcpInterceptor.class)
+    @ConditionalOnProperty(prefix = "mcp.governance.validation", name = "enabled", havingValue = "true")
+    public ParameterValidationMcpInterceptor parameterValidationMcpInterceptor(McpGovernanceProperties properties) {
+        List<ParameterValidationRule> rules = properties.getValidation().getRules().stream()
+            .map(r -> new ParameterValidationRule(
+                r.getToolPattern(),
+                r.getParameter(),
+                r.isRequired(),
+                r.getDisallowedRegex(),
+                r.getRequiredRegex(),
+                r.getErrorMessage()
+            ))
+            .toList();
+        return new ParameterValidationMcpInterceptor(rules);
     }
 
     /**

@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mcp-manager.io/schemas/audit-event.schema.json",
+  "title": "McpAuditEvent",
+  "description": "不可变 MCP 运行时结构化安全治理审计记录契约，满足 OWASP MCP01/MCP08 合规要求",
+  "type": "object",
+  "required": [
+    "eventId",
+    "timestamp",
+    "toolName",
+    "status",
+    "durationMs",
+    "arguments"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "全局唯一审计事件 ID"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "审计事件生成时间戳 (ISO-8601 UTC)"
+    },
+    "traceId": {
+      "type": ["string", "null"],
+      "description": "分布式链路追踪 ID"
+    },
+    "callerId": {
+      "type": ["string", "null"],
+      "description": "调用方或 Agent 主体唯一标识"
+    },
+    "toolName": {
+      "type": "string",
+      "description": "被调用的 MCP 工具名称"
+    },
+    "arguments": {
+      "type": "object",
+      "description": "已脱敏处理的入参键值对映射，敏感信息已替换为掩码",
+      "additionalProperties": true
+    },
+    "status": {
+      "type": "string",
+      "enum": ["SUCCESS", "ACCESS_DENIED", "VALIDATION_FAILED", "ERROR"],
+      "description": "调用治理最终状态"
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "工具调用与治理链路总执行耗时（毫秒）"
+    },
+    "failureReason": {
+      "type": ["string", "null"],
+      "description": "阻断违规或底层调用失败的原因说明，成功调用为 null"
+    },
+    "attributes": {
+      "type": "object",
+      "description": "治理上下文只读元数据与环境快照（如客户端 IP、会话属性、规则决策明细）",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

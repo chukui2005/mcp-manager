@@ -1,7 +1,12 @@
 package io.github.chukui2005.mcpgov.spring.boot.autoconfigure;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.chukui2005.mcpgov.core.runtime.McpInterceptor;
 import io.github.chukui2005.mcpgov.core.runtime.McpInterceptorChain;
+import io.github.chukui2005.mcpgov.core.runtime.audit.AuditMcpInterceptor;
+import io.github.chukui2005.mcpgov.core.runtime.audit.DefaultMcpAuditPublisher;
+import io.github.chukui2005.mcpgov.core.runtime.audit.McpAuditListener;
+import io.github.chukui2005.mcpgov.core.runtime.audit.McpAuditPublisher;
 import io.github.chukui2005.mcpgov.core.runtime.metrics.InMemoryMcpMetricsCollector;
 import io.github.chukui2005.mcpgov.core.runtime.metrics.McpMetricsCollector;
 import io.github.chukui2005.mcpgov.core.runtime.metrics.MetricsMcpInterceptor;
@@ -10,6 +15,8 @@ import io.github.chukui2005.mcpgov.core.runtime.policy.ParameterValidationRule;
 import io.github.chukui2005.mcpgov.core.runtime.policy.ToolAclMcpInterceptor;
 import io.github.chukui2005.mcpgov.core.runtime.policy.ToolAclPolicy;
 import io.github.chukui2005.mcpgov.spring.boot.actuator.McpGovernanceEndpoint;
+import io.github.chukui2005.mcpgov.spring.boot.audit.JsonLoggingMcpAuditListener;
+import io.github.chukui2005.mcpgov.spring.boot.audit.SpringMcpAuditPublisher;
 import io.github.chukui2005.mcpgov.spring.boot.interceptor.LoggingMcpInterceptor;
 import io.github.chukui2005.mcpgov.spring.boot.metrics.MicrometerMcpMetricsCollector;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -82,6 +89,62 @@ public class McpGovernanceAutoConfiguration {
             ))
             .toList();
         return new ParameterValidationMcpInterceptor(rules);
+    }
+
+    /**
+     * 当开启审计且容器中不存在自定义 McpAuditPublisher 时，注册默认的 Spring 审计发布器，
+     * 并自动绑定容器中所有已声明的 McpAuditListener。
+     *
+     * @param properties 治理配置属性
+     * @param listenersProvider 容器中声明的审计监听器提供者
+     * @return 审计发布器实例
+     */
+    @Bean
+    @ConditionalOnMissingBean(McpAuditPublisher.class)
+    @ConditionalOnProperty(prefix = "mcp.governance.audit", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public McpAuditPublisher mcpAuditPublisher(
+            McpGovernanceProperties properties,
+            ObjectProvider<List<McpAuditListener>> listenersProvider) {
+        boolean springEventEnabled = properties.getAudit().getSpringEvent().isEnabled();
+        SpringMcpAuditPublisher publisher = new SpringMcpAuditPublisher(springEventEnabled);
+        List<McpAuditListener> listeners = listenersProvider.getIfAvailable();
+        if (listeners != null) {
+            listeners.forEach(publisher::addListener);
+        }
+        return publisher;
+    }
+
+    /**
+     * 当开启结构化 JSON 日志导出且容器中不存在自定义 JsonLoggingMcpAuditListener 时装配。
+     *
+     * @param properties 治理配置属性
+     * @param objectMapperProvider Jackson ObjectMapper 提供者
+     * @return 结构化 JSON 审计日志监听器
+     */
+    @Bean
+    @ConditionalOnMissingBean(JsonLoggingMcpAuditListener.class)
+    @ConditionalOnProperty(prefix = "mcp.governance.audit.json-export", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public JsonLoggingMcpAuditListener jsonLoggingMcpAuditListener(
+            McpGovernanceProperties properties,
+            ObjectProvider<ObjectMapper> objectMapperProvider) {
+        ObjectMapper mapper = objectMapperProvider.getIfAvailable();
+        String loggerName = properties.getAudit().getJsonExport().getLoggerName();
+        return new JsonLoggingMcpAuditListener(mapper, loggerName);
+    }
+
+    /**
+     * 当开启审计且容器中不存在自定义 AuditMcpInterceptor 时，注册核心审计拦截器（Order: -50）。
+     *
+     * @param publisher 审计事件发布器
+     * @param properties 治理配置属性
+     * @return 核心审计拦截器
+     */
+    @Bean
+    @ConditionalOnMissingBean(AuditMcpInterceptor.class)
+    @ConditionalOnProperty(prefix = "mcp.governance.audit", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public AuditMcpInterceptor auditMcpInterceptor(McpAuditPublisher publisher, McpGovernanceProperties properties) {
+        boolean maskSensitive = properties.getAudit().isMaskSensitiveArguments();
+        return new AuditMcpInterceptor(publisher, maskSensitive);
     }
 
     /**

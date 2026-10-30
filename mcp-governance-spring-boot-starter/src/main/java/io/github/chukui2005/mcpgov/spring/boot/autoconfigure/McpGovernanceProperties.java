@@ -172,6 +172,16 @@ public class McpGovernanceProperties {
         private boolean maskSensitiveArguments = true;
 
         /**
+         * 结构化 JSON 审计日志导出相关配置。
+         */
+        private JsonExportProperties jsonExport = new JsonExportProperties();
+
+        /**
+         * Spring 事件总线发布相关配置。
+         */
+        private SpringEventProperties springEvent = new SpringEventProperties();
+
+        /**
          * 获取是否启用审计日志。
          *
          * @return 是否启用审计日志
@@ -223,6 +233,123 @@ public class McpGovernanceProperties {
          */
         public void setMaskSensitiveArguments(boolean maskSensitiveArguments) {
             this.maskSensitiveArguments = maskSensitiveArguments;
+        }
+
+        /**
+         * 获取结构化 JSON 导出配置。
+         *
+         * @return JSON 导出配置
+         */
+        public JsonExportProperties getJsonExport() {
+            return jsonExport;
+        }
+
+        /**
+         * 设置结构化 JSON 导出配置。
+         *
+         * @param jsonExport JSON 导出配置
+         */
+        public void setJsonExport(JsonExportProperties jsonExport) {
+            this.jsonExport = jsonExport;
+        }
+
+        /**
+         * 获取 Spring 事件发布配置。
+         *
+         * @return Spring 事件配置
+         */
+        public SpringEventProperties getSpringEvent() {
+            return springEvent;
+        }
+
+        /**
+         * 设置 Spring 事件发布配置。
+         *
+         * @param springEvent Spring 事件配置
+         */
+        public void setSpringEvent(SpringEventProperties springEvent) {
+            this.springEvent = springEvent;
+        }
+
+        /**
+         * 结构化 JSON 导出配置属性。
+         */
+        public static class JsonExportProperties {
+
+            /**
+             * 是否开启单行 JSON 结构化审计日志导出，默认为 true。
+             */
+            private boolean enabled = true;
+
+            /**
+             * JSON 审计日志输出的目标 Logger 名称，默认为 io.github.chukui2005.mcpgov.audit。
+             */
+            private String loggerName = "io.github.chukui2005.mcpgov.audit";
+
+            /**
+             * 获取是否开启 JSON 导出。
+             *
+             * @return 是否开启
+             */
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            /**
+             * 设置是否开启 JSON 导出。
+             *
+             * @param enabled 是否开启
+             */
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
+
+            /**
+             * 获取 Logger 名称。
+             *
+             * @return Logger 名称
+             */
+            public String getLoggerName() {
+                return loggerName;
+            }
+
+            /**
+             * 设置 Logger 名称。
+             *
+             * @param loggerName Logger 名称
+             */
+            public void setLoggerName(String loggerName) {
+                this.loggerName = loggerName;
+            }
+        }
+
+        /**
+         * Spring 事件发布配置属性。
+         */
+        public static class SpringEventProperties {
+
+            /**
+             * 是否开启 Spring 事件总线广播，默认为 true。
+             */
+            private boolean enabled = true;
+
+            /**
+             * 获取是否开启 Spring 事件广播。
+             *
+             * @return 是否开启
+             */
+            public boolean isEnabled() {
+                return enabled;
+            }
+
+            /**
+             * 设置是否开启 Spring 事件广播。
+             *
+             * @param enabled 是否开启
+             */
+            public void setEnabled(boolean enabled) {
+                this.enabled = enabled;
+            }
         }
     }
 

@@ -2,8 +2,8 @@
 
 > **当前维护者**: MCP Governance 统筹中枢  
 > **更新时间**: 2026-10-31  
-> **当前版本**: v0.2.0-beta (Phase 2 全面收官)  
-> **对应阶段**: Phase 2 (运行时治理与 Spring Boot Starter 收官) -> Phase 3 准备
+> **当前版本**: v0.3.0-alpha (Phase 3 网关骨架与路由引擎收官)  
+> **对应阶段**: Phase 3 (独立 MCP 网关建设中)
 
 ---
 
@@ -44,44 +44,39 @@
    - 产出 ADR 0004 与 Blueprint 0004，建立纯 Java 不可变上下文模型与责任链拦截器契约；
    - 实现 Spring Boot 3.3.4 条件装配与敏感入参脱敏审计拦截器 `LoggingMcpInterceptor`。
 7. **`TASK-005` 运行时策略拦截器集实现与 Spring Boot 深度集成 (Phase 2 核心收官)**:
-   - **架构决策与蓝图**: 产出 [docs/adr/0005-runtime-policy-and-tool-acl.md](docs/adr/0005-runtime-policy-and-tool-acl.md)、[docs/architecture/0005-blueprint.md](docs/architecture/0005-blueprint.md) 及 [docs/contracts/runtime-policy.schema.json](docs/contracts/runtime-policy.schema.json)；
-   - **纯 Java 策略模型与拦截器 (`mcp-governance-core`)**: 实现 `AclMode`（WHITELIST/BLACKLIST）、`ToolAclPolicy`（支持通配符 `file_*`、`db:*` 与正则缓存）、`ParameterValidationRule`、`ToolAclMcpInterceptor` (Order: 100，OWASP MCP02 治理) 与 `ParameterValidationMcpInterceptor` (Order: 200，防越权入参与路径遍历正则拦截)；
-   - **Starter 自动装配与端到端适配 (`mcp-governance-spring-boot-starter`)**: 扩展 `McpGovernanceProperties` 支持 `acl` 与 `validation` 嵌套属性绑定，通过 `McpGovernanceAutoConfiguration` 条件注入责任链，提供 `McpGovernanceAdapter` 端到端调用拦截模板；
-   - **全量门禁**: 全工程 6 个模块、54 个单元/集成测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`，已成功合入 `main`。
-
+   - 实现 `AclMode`、`ToolAclPolicy`、`ParameterValidationRule`、`ToolAclMcpInterceptor` (Order: 100) 与 `ParameterValidationMcpInterceptor` (Order: 200)；
+   - Starter 自动装配与责任链条件注入，全量测试通过并合入 `main`。
 8. **`TASK-006` 运行时指标遥测与 Micrometer / Actuator 监控观测集成 (Phase 2 可观测性收官)**:
-   - **架构决策与蓝图**: 产出 [docs/adr/0006-runtime-metrics-and-actuator.md](docs/adr/0006-runtime-metrics-and-actuator.md)、[docs/architecture/0006-blueprint.md](docs/architecture/0006-blueprint.md) 及 [docs/contracts/metrics-snapshot.schema.json](docs/contracts/metrics-snapshot.schema.json)；
-   - **纯 Java 核心遥测抽象 (`mcp-governance-core`)**: 实现 `InvocationStatus`、`ToolMetricsSnapshot`、`McpMetricsSnapshot`、`McpMetricsCollector` SPI，以及基于 `LongAdder` 的无锁并发指标收集器 `InMemoryMcpMetricsCollector`；
-   - **最外层拦截器编排**: 实现 `MetricsMcpInterceptor` (Order: -100)，处于责任链最外围，100% 覆盖并捕获成功调用、Tool ACL 阻断 (OWASP MCP02) 与参数校验违规 (OWASP MCP05)，杜绝监控逃逸；
-   - **Starter 自动装配与优雅降级 (`mcp-governance-spring-boot-starter`)**: 声明可选依赖，实现 `MicrometerMcpMetricsCollector` 与 Spring Boot Actuator 端点 `McpGovernanceEndpoint`（`/actuator/mcpGovernance`）；
-   - **全量门禁**: 全工程 6 个模块、69 个单元/集成测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`。
-
+   - 实现 `InvocationStatus`、`ToolMetricsSnapshot`、`McpMetricsCollector` SPI、`InMemoryMcpMetricsCollector` 与 `MetricsMcpInterceptor` (Order: -100)；
+   - Starter 自动装配与 Actuator 端点 `/actuator/mcpGovernance`，全量测试通过并合入 `main`。
 9. **`TASK-007` 运行时审计记录结构化导出与事件监听器体系 (Phase 2 全面圆满收官)**:
-   - **架构决策与蓝图**: 产出 [docs/adr/0007-runtime-audit-event-and-listener.md](docs/adr/0007-runtime-audit-event-and-listener.md)、[docs/architecture/0007-blueprint.md](docs/architecture/0007-blueprint.md) 及 [docs/contracts/audit-event.schema.json](docs/contracts/audit-event.schema.json)；
-   - **纯 Java 审计事件与发布监听体系 (`mcp-governance-core`)**: 实现不可变结构化记录 `McpAuditEvent`、深度递归敏感参数打码工具 `SensitiveDataMasker`（防 OWASP MCP01）、`McpAuditPublisher` 与 `McpAuditListener` SPI 接口，以及内置异常隔离沙箱的 `DefaultMcpAuditPublisher`；
-   - **全生命周期审计拦截器**: 实现 `AuditMcpInterceptor` (Order: -50)，处于最外围第二层，紧邻 Metrics (-100)，全生命周期无死角捕获正常执行与 Tool ACL 阻断、参数校验失败（防 OWASP MCP08 审计逃逸）；
-   - **Spring Boot 事件机制与结构化导出 (`mcp-governance-spring-boot-starter`)**: 实现 `SpringMcpAuditEvent` 与 `SpringMcpAuditPublisher`（支持原生 `@EventListener` 异步解耦），以及使用 Jackson 导出单行紧凑 JSON 格式的 `JsonLoggingMcpAuditListener`（原生适配 SIEM/ELK 免正则采集）；
-   - **全量门禁**: 全工程 6 个模块、84 个单元/集成测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`，已成功合并至 `main`。
+   - 实现不可变记录 `McpAuditEvent`、递归打码 `SensitiveDataMasker`、`McpAuditPublisher` SPI 与 `AuditMcpInterceptor` (Order: -50)；
+   - Starter 支持 `@EventListener` 与单行紧凑 JSON 导出（SIEM 零解析采集），全量测试通过并合入 `main`。
+10. **`TASK-008` Phase 2 结项验收复盘与 Phase 3 独立网关架构预研 (架构收官)**:
+    - 产出 ADR 0008、Blueprint 0008 与网关路由契约 `docs/contracts/gateway-routes.schema.json`。
+11. **`TASK-009` mcp-governance-gateway 模块骨架搭建与路由聚合引擎实现 (Phase 3 启航收官)**:
+    - **模块与架构分层**: 新建 Maven 模块 `mcp-governance-gateway`，单向依赖纯 Java 模块 `mcp-governance-core`，引入 Spring Boot 3.3.4 Reactive WebFlux (`spring-boot-starter-webflux`) 与 Actuator；
+    - **配置与契约模型**: 严格映射 `gateway-routes.schema.json` 契约，实现 `GatewayServerProperties`（默认强制安全基线 `127.0.0.1:8080`）、`RouteDefinition`、`UpstreamProtocol`（sse/http/stdio）、`StdioCommandConfig`、`UpstreamAuthConfig`、`RouteGovernanceConfig`；
+    - **路由聚合管理**: 实现高并发安全的内存路由管理器 `RouteManager`，支持前缀冲突检测与**最长前缀优先匹配算法**（Longest Prefix Match）；
+    - **JSON-RPC 2.0 端点**: 实现 `JsonRpcRequest`、`JsonRpcResponse`、`JsonRpcError` 领域模型与 Streamable HTTP 控制器 `McpRpcController`（`POST /mcp/v1/rpc`），支持 `initialize` 握手、`tools/list` 命名空间聚合与 `tools/call` 前缀解析分发；
+    - **Core 治理适配**: 实现 `GatewayExecutionAdapter`，将入站请求打通转换为 Core 的不可变 `McpInvocationContext`；
+    - **全量门禁**: 全工程 7 个模块、95 个单元与集成测试 100% PASS，Javadoc 零警告，两轮审查给出 `verdict: PASS`，已正式合并入 `main`。
 
 ---
 
-## 3. 当前进展与下一个任务目标：TASK-009 (Phase 3 独立网关骨架与路由模型)
+## 3. 当前进展与下一个任务目标：TASK-010 (动态路由配置热加载与工具命名空间聚合深化)
 
-### 3.1 刚完成任务：TASK-008 (Phase 2 结项验收复盘与 Phase 3 独立网关架构预研)
-- **产出 ADR**: `docs/adr/0008-phase3-gateway-architecture-preview.md`
-- **产出蓝图**: `docs/architecture/0008-blueprint.md`
-- **产出契约**: `docs/contracts/gateway-routes.schema.json`
-- **文档矩阵同步**: 同步更新 `README.md` 与 `README.zh-CN.md` 中的 Phase 2 完成项与 Phase 3 路线图；更新 `environment-baseline.md` 推进至 Phase 3。
-- **状态**: 人类负责人已签署 `Approved: Yes`，状态达成 `DONE`。
+### 3.1 刚完成任务：TASK-009 (mcp-governance-gateway 模块骨架搭建与路由聚合引擎实现)
+- **状态**: 人类授权合并，分支 `task/TASK-009-gateway-scaffold` 已成功合并入 `main`，状态机达成 `DONE`。
 
-### 3.2 下一个任务目标：TASK-009 (mcp-governance-gateway 模块骨架与路由聚合引擎实现)
-- **所属阶段**: Phase 3 启航
-- **核心模块**: 新增 `mcp-governance-gateway` Maven 模块
+### 3.2 下一个任务目标：TASK-010 (动态路由文件解析加载、tools/list 聚合视图与租户级 ACL 过滤)
+- **所属阶段**: Phase 3 核心推进
+- **核心模块**: `mcp-governance-gateway`
 - **核心目标**:
-  1. 建立 `mcp-governance-gateway` 模块骨架，引入 `mcp-governance-core` 与 Spring WebFlux 响应式基础；
-  2. 实现 `RouteDefinition`、`RouteManager` 内存路由表解析与索引；
-  3. 实现入站 JSON-RPC 2.0 基础端点（`/mcp/v1/rpc`），对接 Core 治理适配器；
-  4. 编写全套单元测试，确保 `mvn verify` 与 Javadoc 零警告通过。
+  1. 支持从独立外部配置文件（如 `gateway-routes.json` 或 `gateway-routes.yml`）解析加载路由表与下游定义；
+  2. 实现 `ToolAggregator`：并发向各下游 Server 查询 `tools/list`，注入命名空间前缀（`prefix`），并根据租户级 ACL（`RouteGovernanceConfig`）自动过滤被禁止的工具，实现按最小权限暴露（防 OWASP MCP02）；
+  3. 扩充 WebFlux 响应式端点与单测，验证多 upstream 场景下的命名空间防冲突与租户隔离发现；
+  4. 确保 `mvn verify` 全绿，Javadoc 零警告。
 
 ---
 
@@ -89,7 +84,7 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1、Phase 2 全部圆满收官，TASK-008（Phase 2 结项复盘与 Phase 3 独立网关架构设计）已获批准。
+Phase 1、Phase 2 全部圆满收官，Phase 3 的首个实施任务 TASK-009（网关骨架搭建与路由聚合引擎实现）已正式验收并合并入 main 分支。
 请严格阅读仓库根目录的核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
@@ -102,6 +97,6 @@ Phase 1、Phase 2 全部圆满收官，TASK-008（Phase 2 结项复盘与 Phase 
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-009：mcp-governance-gateway 模块骨架搭建与路由聚合引擎实现。
+启动 TASK-010：动态路由配置加载、tools/list 聚合视图与租户级 ACL 过滤深化。
 根据 ADR 0008 与 Blueprint 0008 分派研发工程师队友开展隔离分支开发与测试，代码审核员执行两遍审查，待通过后向我汇报。所有代码注释、文档一律使用中文。
 ```

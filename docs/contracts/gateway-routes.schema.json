@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chukui2005/mcp-manager/docs/contracts/gateway-routes.schema.json",
+  "title": "McpGatewayRoutesConfig",
+  "description": "MCP Governance Standalone Gateway 路由表与代理策略配置规范契约",
+  "type": "object",
+  "required": [
+    "gateway",
+    "upstreams"
+  ],
+  "properties": {
+    "gateway": {
+      "type": "object",
+      "description": "网关服务运行参数配置",
+      "required": [
+        "host",
+        "port"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "description": "网关监听地址，默认必须绑定 127.0.0.1 本地回环地址",
+          "default": "127.0.0.1"
+        },
+        "port": {
+          "type": "integer",
+          "description": "网关监听端口",
+          "minimum": 1,
+          "maximum": 65535,
+          "default": 8080
+        },
+        "corsAllowedOrigins": {
+          "type": "array",
+          "description": "允许跨域访问的 Origin 列表",
+          "items": {
+            "type": "string"
+          }
+        },
+        "requestTimeoutMs": {
+          "type": "integer",
+          "description": "全局请求超时时间毫秒数",
+          "minimum": 100,
+          "default": 30000
+        }
+      },
+      "additionalProperties": false
+    },
+    "upstreams": {
+      "type": "array",
+      "description": "代理的下游 MCP Server 路由规则清单",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "protocol",
+          "prefix"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "下游服务的唯一业务标识符",
+            "pattern": "^[a-zA-Z0-9_-]+$"
+          },
+          "protocol": {
+            "type": "string",
+            "description": "下游协议类型：sse、http (Streamable HTTP) 或 stdio (本地受控托管子进程)",
+            "enum": [
+              "sse",
+              "http",
+              "stdio"
+            ]
+          },
+          "prefix": {
+            "type": "string",
+            "description": "命名空间前缀，用于聚合 tools/list 时避免名称冲突并实现前缀路由分发（如 k8s_、db:）",
+            "pattern": "^[a-zA-Z0-9_:-]+$"
+          },
+          "uri": {
+            "type": "string",
+            "description": "下游远程服务地址（适用于 sse 与 http 协议，如 http://10.0.1.20:8000/sse）"
+          },
+          "stdioCommand": {
+            "type": "object",
+            "description": "本地子进程命令配置（仅在 protocol 为 stdio 时生效）",
+            "required": [
+              "command"
+            ],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "受信任的绝对路径或固定二进制命令"
+              },
+              "args": {
+                "type": "array",
+                "description": "固定的命令行入参列表",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "workingDirectory": {
+                "type": "string",
+                "description": "子进程工作目录"
+              }
+            },
+            "additionalProperties": false
+          },
+          "auth": {
+            "type": "object",
+            "description": "下游凭证配置（网关独立挂载，严禁向上游客户端透传）",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "bearer",
+                  "apiKey",
+                  "basic"
+                ]
+              },
+              "headerName": {
+                "type": "string",
+                "default": "Authorization"
+              },
+              "tokenRef": {
+                "type": "string",
+                "description": "环境变量引用名称，如 ${GITHUB_MCP_TOKEN}，禁止明文写入"
+              }
+            },
+            "additionalProperties": false
+          },
+          "governance": {
+            "type": "object",
+            "description": "针对该下游服务的特定治理规则（覆盖或继承全局策略）",
+            "properties": {
+              "aclMode": {
+                "type": "string",
+                "enum": [
+                  "WHITELIST",
+                  "BLACKLIST"
+                ]
+              },
+              "allowedTools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "deniedTools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

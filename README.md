@@ -158,13 +158,20 @@ Add MCP static security scanning directly to `.github/workflows/ci.yml`:
   - [x] OASIS SARIF 2.1.0 serializer and JSON schema verification
   - [x] CLI executable fat-jar with ANSI terminal reporting and exit code gates
   - [x] GitHub Composite Action and self-hosted bootstrap scan pipeline
-- **Phase 2: Runtime Governance & Spring Boot Starter (Upcoming)**
-  - [ ] `mcp-governance-spring-boot-starter` non-invasive client/server interception
-  - [ ] Runtime context desensitization and prompt filtering
-  - [ ] Comprehensive audit logging and OpenTelemetry metrics
-- **Phase 3: Standalone Gateway & Policy Replay (Future)**
-  - [ ] Independent MCP proxy/gateway with OAuth 2.1 authentication
-  - [ ] Dynamic policy replay and shadow execution sandbox
+- **Phase 2: Runtime Governance & Spring Boot Starter (Completed)**
+  - [x] `mcp-governance-spring-boot-starter` conditional auto-configuration & zero-intrusion adapter
+  - [x] Pure Java immutable context & interceptor chain architecture (`McpInterceptorChain`)
+  - [x] Tool ACL access control (whitelist/blacklist & wildcard patterns, addressing OWASP MCP02)
+  - [x] Parameter safety validation interceptor (anti-injection & path traversal, addressing OWASP MCP05)
+  - [x] Runtime metrics telemetry & Spring Boot Actuator endpoint (`/actuator/mcpGovernance`, addressing OWASP MCP08)
+  - [x] Immutable structured audit events (`McpAuditEvent`) & recursive parameter masking (`SensitiveDataMasker`, addressing OWASP MCP01)
+  - [x] Spring native `@EventListener` & single-line compact JSON export (out-of-the-box SIEM/ELK integration)
+- **Phase 3: Standalone MCP Governance Gateway (Architecture Preview Completed)**
+  - [x] Standalone Gateway Architecture Decision (ADR 0008), Blueprint & Route Contract (`gateway-routes.schema.json`)
+  - [ ] `mcp-governance-gateway` standalone module scaffolding & routing engine (TASK-009)
+  - [ ] Remote SSE & Streamable HTTP reverse proxy clients (TASK-010)
+  - [ ] Managed local STDIO process pool with strict sandboxing (TASK-011)
+  - [ ] Gateway control plane endpoints & Docker containerization (TASK-012)
 
 ---
 

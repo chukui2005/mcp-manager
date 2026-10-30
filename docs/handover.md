@@ -65,14 +65,23 @@
 
 ---
 
-## 3. 下一个任务目标：TASK-008 (Phase 2 整体发布回顾与 Phase 3 独立网关架构预研 / Starter 易用性增强)
+## 3. 当前进展与下一个任务目标：TASK-009 (Phase 3 独立网关骨架与路由模型)
 
-### 任务名称：Phase 2 结项复盘与独立网关 (Gateway) 架构设计启动 (TASK-008)
-- **所属阶段**: Phase 2 收官验收 / Phase 3 (独立 MCP 网关架构)
-- **模块重点**: 架构设计与整体集成文档
-- **核心需求**:
-  1. **Phase 2 成果封版验收与文档同步**: 完善 `README.md` 与 `README.zh-CN.md` 中的 Phase 2 Starter 运行时治理功能矩阵（拦截器、Tool ACL、参数校验、指标遥测、审计事件）；
-  2. **Phase 3 架构愿景启动**: 针对独立 MCP 网关（Phase 3 Gateway）编写前瞻架构决策与分层契约（HTTP/SSE/STDIO 协议代理治理模型）。
+### 3.1 刚完成任务：TASK-008 (Phase 2 结项验收复盘与 Phase 3 独立网关架构预研)
+- **产出 ADR**: `docs/adr/0008-phase3-gateway-architecture-preview.md`
+- **产出蓝图**: `docs/architecture/0008-blueprint.md`
+- **产出契约**: `docs/contracts/gateway-routes.schema.json`
+- **文档矩阵同步**: 同步更新 `README.md` 与 `README.zh-CN.md` 中的 Phase 2 完成项与 Phase 3 路线图；更新 `environment-baseline.md` 推进至 Phase 3。
+- **状态**: 人类负责人已签署 `Approved: Yes`，状态达成 `DONE`。
+
+### 3.2 下一个任务目标：TASK-009 (mcp-governance-gateway 模块骨架与路由聚合引擎实现)
+- **所属阶段**: Phase 3 启航
+- **核心模块**: 新增 `mcp-governance-gateway` Maven 模块
+- **核心目标**:
+  1. 建立 `mcp-governance-gateway` 模块骨架，引入 `mcp-governance-core` 与 Spring WebFlux 响应式基础；
+  2. 实现 `RouteDefinition`、`RouteManager` 内存路由表解析与索引；
+  3. 实现入站 JSON-RPC 2.0 基础端点（`/mcp/v1/rpc`），对接 Core 治理适配器；
+  4. 编写全套单元测试，确保 `mvn verify` 与 Javadoc 零警告通过。
 
 ---
 
@@ -80,18 +89,19 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1 与 Phase 2（TASK-004、TASK-005、TASK-006、TASK-007）全部圆满收官并合入 main 分支，包含了运行时拦截契约、Tool ACL 权限治理、指标遥测与 Actuator 端点、结构化审计事件与监听器体系。
-请你严格阅读仓库根目录的以下核心基线文档：
+Phase 1、Phase 2 全部圆满收官，TASK-008（Phase 2 结项复盘与 Phase 3 独立网关架构设计）已获批准。
+请严格阅读仓库根目录的核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
 3. docs/environment-baseline.md（技术与版本基线）
-4. docs/adr/0007-runtime-audit-event-and-listener.md（运行时审计 ADR）
-5. docs/architecture/0007-blueprint.md（运行时审计蓝图）
+4. docs/adr/0008-phase3-gateway-architecture-preview.md（网关架构 ADR）
+5. docs/architecture/0008-blueprint.md（网关技术实施蓝图）
+6. docs/contracts/gateway-routes.schema.json（网关路由契约）
 
 【你的职责】：
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-008：Phase 2 结项验收复盘与 Phase 3 独立网关架构预研。
-请分派架构师队友产出相关规划与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
+启动 TASK-009：mcp-governance-gateway 模块骨架搭建与路由聚合引擎实现。
+根据 ADR 0008 与 Blueprint 0008 分派研发工程师队友开展隔离分支开发与测试，代码审核员执行两遍审查，待通过后向我汇报。所有代码注释、文档一律使用中文。
 ```

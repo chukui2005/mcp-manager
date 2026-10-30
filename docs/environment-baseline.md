@@ -10,7 +10,7 @@
 - **开源协议**：`Apache-2.0`
 - **定位**：MCP 的治理与审计层，Java 原生，扫描优先。
 - **Maven GroupId**：`io.github.chukui2005`（基于 GitHub 组织/用户名的官方 Maven Central Portal 标准命名空间）
-- **当前 Phase**：`Phase 2: 运行时治理与 Spring Boot Starter`
+- **当前 Phase**：`Phase 3: 独立 MCP 网关 (mcp-governance-gateway)`
 
 ## 2. 运行时与构建环境
 

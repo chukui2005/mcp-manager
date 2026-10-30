@@ -158,13 +158,20 @@ java -jar mcp-governance-cli/target/mcp-governance-cli-0.1.0-SNAPSHOT-all.jar \
   - [x] OASIS SARIF 2.1.0 序列化与 JSON Schema 契约校验
   - [x] CLI 可执行 Fat-JAR、ANSI 彩色终端报表与 Exit Code 门禁
   - [x] GitHub Composite Action 封装与仓库自举静态审计工作流
-- **Phase 2: 运行时治理与 Spring Boot Starter (待启动)**
-  - [ ] `mcp-governance-spring-boot-starter` 无侵入客户端/服务端拦截
-  - [ ] 运行时上下文动态脱敏与 Prompt 过滤
-  - [ ] 结构化审计日志与 OpenTelemetry 遥测指标接入
-- **Phase 3: 独立治理网关与策略回放 (规划中)**
-  - [ ] 独立 MCP 治理网关代理，强制 OAuth 2.1 鉴权
-  - [ ] 策略动态重放与影子执行沙箱
+- **Phase 2: 运行时治理与 Spring Boot Starter (已全面收官)**
+  - [x] `mcp-governance-spring-boot-starter` 条件化自动装配与零侵入适配
+  - [x] 纯 Java 不可变上下文模型与拦截器责任链体系 (`McpInterceptorChain`)
+  - [x] Tool ACL 访问控制（黑白名单与通配符规则，治理 OWASP MCP02）
+  - [x] 参数安全校验拦截器（防命令注入与路径遍历，治理 OWASP MCP05）
+  - [x] 运行时指标遥测与 Spring Boot Actuator 端点集成 (`/actuator/mcpGovernance`, 治理 OWASP MCP08)
+  - [x] 不可变结构化审计事件 (`McpAuditEvent`)、递归敏感参数脱敏 (`SensitiveDataMasker`, 治理 OWASP MCP01)
+  - [x] Spring 原生 `@EventListener` 异步事件与单行紧凑 JSON 格式导出 (开箱即用适配 SIEM/ELK)
+- **Phase 3: 独立 MCP 治理网关 (架构预研完成，进入实施)**
+  - [x] 独立 MCP 网关架构决策 (ADR 0008)、技术蓝图与路由契约 (`gateway-routes.schema.json`)
+  - [ ] `mcp-governance-gateway` 独立模块骨架与路由引擎 (TASK-009)
+  - [ ] 远端 SSE 与 Streamable HTTP 反向代理客户端 (TASK-010)
+  - [ ] 受控本地 STDIO 进程池托管与沙箱隔离 (TASK-011)
+  - [ ] 网关控制平面端点与 Docker 容器镜像发布 (TASK-012)
 
 ---
 

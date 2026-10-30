@@ -1,9 +1,9 @@
 # 项目换届与会话交接指南 (Handover Guide)
 
 > **当前维护者**: MCP Governance 统筹中枢  
-> **更新时间**: 2026-10-30  
-> **当前版本**: v0.2.0-alpha  
-> **对应阶段**: Phase 2 (运行时治理与 Spring Boot Starter)
+> **更新时间**: 2026-10-31  
+> **当前版本**: v0.2.0-beta (Phase 2 全面收官)  
+> **对应阶段**: Phase 2 (运行时治理与 Spring Boot Starter 收官) -> Phase 3 准备
 
 ---
 
@@ -53,20 +53,26 @@
    - **架构决策与蓝图**: 产出 [docs/adr/0006-runtime-metrics-and-actuator.md](docs/adr/0006-runtime-metrics-and-actuator.md)、[docs/architecture/0006-blueprint.md](docs/architecture/0006-blueprint.md) 及 [docs/contracts/metrics-snapshot.schema.json](docs/contracts/metrics-snapshot.schema.json)；
    - **纯 Java 核心遥测抽象 (`mcp-governance-core`)**: 实现 `InvocationStatus`、`ToolMetricsSnapshot`、`McpMetricsSnapshot`、`McpMetricsCollector` SPI，以及基于 `LongAdder` 的无锁并发指标收集器 `InMemoryMcpMetricsCollector`；
    - **最外层拦截器编排**: 实现 `MetricsMcpInterceptor` (Order: -100)，处于责任链最外围，100% 覆盖并捕获成功调用、Tool ACL 阻断 (OWASP MCP02) 与参数校验违规 (OWASP MCP05)，杜绝监控逃逸；
-   - **Starter 自动装配与优雅降级 (`mcp-governance-spring-boot-starter`)**: 声明可选依赖，实现 `MicrometerMcpMetricsCollector`（多维度绑定计数器与执行计时器）与 Spring Boot Actuator 端点 `McpGovernanceEndpoint`（`/actuator/mcpGovernance`），在无监控组件环境中平滑无损降级；
+   - **Starter 自动装配与优雅降级 (`mcp-governance-spring-boot-starter`)**: 声明可选依赖，实现 `MicrometerMcpMetricsCollector` 与 Spring Boot Actuator 端点 `McpGovernanceEndpoint`（`/actuator/mcpGovernance`）；
    - **全量门禁**: 全工程 6 个模块、69 个单元/集成测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`。
+
+9. **`TASK-007` 运行时审计记录结构化导出与事件监听器体系 (Phase 2 全面圆满收官)**:
+   - **架构决策与蓝图**: 产出 [docs/adr/0007-runtime-audit-event-and-listener.md](docs/adr/0007-runtime-audit-event-and-listener.md)、[docs/architecture/0007-blueprint.md](docs/architecture/0007-blueprint.md) 及 [docs/contracts/audit-event.schema.json](docs/contracts/audit-event.schema.json)；
+   - **纯 Java 审计事件与发布监听体系 (`mcp-governance-core`)**: 实现不可变结构化记录 `McpAuditEvent`、深度递归敏感参数打码工具 `SensitiveDataMasker`（防 OWASP MCP01）、`McpAuditPublisher` 与 `McpAuditListener` SPI 接口，以及内置异常隔离沙箱的 `DefaultMcpAuditPublisher`；
+   - **全生命周期审计拦截器**: 实现 `AuditMcpInterceptor` (Order: -50)，处于最外围第二层，紧邻 Metrics (-100)，全生命周期无死角捕获正常执行与 Tool ACL 阻断、参数校验失败（防 OWASP MCP08 审计逃逸）；
+   - **Spring Boot 事件机制与结构化导出 (`mcp-governance-spring-boot-starter`)**: 实现 `SpringMcpAuditEvent` 与 `SpringMcpAuditPublisher`（支持原生 `@EventListener` 异步解耦），以及使用 Jackson 导出单行紧凑 JSON 格式的 `JsonLoggingMcpAuditListener`（原生适配 SIEM/ELK 免正则采集）；
+   - **全量门禁**: 全工程 6 个模块、84 个单元/集成测试 100% PASS，`mvn javadoc:javadoc` 零警告，审查给出 `verdict: PASS`，已成功合并至 `main`。
 
 ---
 
-## 3. 下一个任务目标：TASK-007 (运行时审计日志持久化 / 结构化导出与 Phase 2 收官)
+## 3. 下一个任务目标：TASK-008 (Phase 2 整体发布回顾与 Phase 3 独立网关架构预研 / Starter 易用性增强)
 
-### 任务名称：运行时审计记录结构化导出与事件监听器体系
-- **所属阶段**: Phase 2 (运行时治理与 Spring Boot Starter)
-- **模块重点**: `mcp-governance-core` 与 `mcp-governance-spring-boot-starter`
+### 任务名称：Phase 2 结项复盘与独立网关 (Gateway) 架构设计启动 (TASK-008)
+- **所属阶段**: Phase 2 收官验收 / Phase 3 (独立 MCP 网关架构)
+- **模块重点**: 架构设计与整体集成文档
 - **核心需求**:
-  1. **审计事件发布/订阅机制**: 在 `core` 定义纯 Java `AuditEventPublisher` 与 `AuditEventListener` SPI 抽象；
-  2. **结构化日志与事件集成**: 在 Starter 中集成 Spring ApplicationEventPublisher 广播治理事件，支持将敏感调用脱敏记录持久化或推送到外部审计管道（应对 OWASP MCP01/MCP08）；
-  3. **自动化测试与端到端验证**: 确保无 Spring 依赖的单体与 Spring Boot 容器均可捕获审计事件。
+  1. **Phase 2 成果封版验收与文档同步**: 完善 `README.md` 与 `README.zh-CN.md` 中的 Phase 2 Starter 运行时治理功能矩阵（拦截器、Tool ACL、参数校验、指标遥测、审计事件）；
+  2. **Phase 3 架构愿景启动**: 针对独立 MCP 网关（Phase 3 Gateway）编写前瞻架构决策与分层契约（HTTP/SSE/STDIO 协议代理治理模型）。
 
 ---
 
@@ -74,18 +80,18 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1 与 TASK-004、TASK-005、TASK-006（运行时拦截契约、Tool ACL 权限治理、运行时指标遥测与 Actuator 端点集成）已全部收官并合入 main 分支。
+Phase 1 与 Phase 2（TASK-004、TASK-005、TASK-006、TASK-007）全部圆满收官并合入 main 分支，包含了运行时拦截契约、Tool ACL 权限治理、指标遥测与 Actuator 端点、结构化审计事件与监听器体系。
 请你严格阅读仓库根目录的以下核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
 3. docs/environment-baseline.md（技术与版本基线）
-4. docs/adr/0006-runtime-metrics-and-actuator.md（运行时指标 ADR）
-5. docs/architecture/0006-blueprint.md（运行时指标蓝图）
+4. docs/adr/0007-runtime-audit-event-and-listener.md（运行时审计 ADR）
+5. docs/architecture/0007-blueprint.md（运行时审计蓝图）
 
 【你的职责】：
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-007：运行时审计记录结构化导出与事件监听器体系（应对 OWASP MCP01/MCP08 安全审计溯源要求）。
-请分派架构师队友产出 ADR 0007 与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
+启动 TASK-008：Phase 2 结项验收复盘与 Phase 3 独立网关架构预研。
+请分派架构师队友产出相关规划与设计蓝图，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
 ```

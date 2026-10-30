@@ -41,6 +41,7 @@
         <module>mcp-governance-rules-owasp</module>
         <module>mcp-governance-cli</module>
         <module>mcp-governance-spring-boot-starter</module>
+        <module>mcp-governance-gateway</module>
     </modules>
 
     <properties>
@@ -101,6 +102,11 @@
             <dependency>
                 <groupId>io.github.chukui2005</groupId>
                 <artifactId>mcp-governance-spring-boot-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.chukui2005</groupId>
+                <artifactId>mcp-governance-gateway</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

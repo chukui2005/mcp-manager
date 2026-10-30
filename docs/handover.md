@@ -60,23 +60,29 @@
     - **路由聚合管理**: 实现高并发安全的内存路由管理器 `RouteManager`，支持前缀冲突检测与**最长前缀优先匹配算法**（Longest Prefix Match）；
     - **JSON-RPC 2.0 端点**: 实现 `JsonRpcRequest`、`JsonRpcResponse`、`JsonRpcError` 领域模型与 Streamable HTTP 控制器 `McpRpcController`（`POST /mcp/v1/rpc`），支持 `initialize` 握手、`tools/list` 命名空间聚合与 `tools/call` 前缀解析分发；
     - **Core 治理适配**: 实现 `GatewayExecutionAdapter`，将入站请求打通转换为 Core 的不可变 `McpInvocationContext`；
-    - **全量门禁**: 全工程 7 个模块、95 个单元与集成测试 100% PASS，Javadoc 零警告，两轮审查给出 `verdict: PASS`，已正式合并入 `main`。
+    - **全量门禁**: 全工程 7 个模块、95 个单元与集成测试 100% PASS，Javadoc 零警告，已正式合并入 `main`。
+12. **`TASK-010` 动态路由配置加载、tools/list 聚合视图与租户级 ACL 过滤深化 (Phase 3 核心深化收官)**:
+    - **契约对齐与动态加载**: 实现 `GatewayRoutesConfig` 与 `RouteConfigLoader`，支持从外部 JSON、流或 Classpath/File 资源加载路由表，支持动态热更新至 `RouteManager` 并重置；
+    - **工具发现与前缀命名空间防冲突**: 抽象 `UpstreamToolProvider` SPI，实现 `ToolAggregator` 并发拉取下游工具，注入唯一路由命名空间前缀 `prefix`，规避跨下游同名工具冲突与影子劫持风险（防 OWASP MCP03、MCP09）；
+    - **租户级 ACL 动态过滤**: 联动下游 `RouteGovernanceConfig` 并转换为 Core 模块不可变 `ToolAclPolicy`，支持白名单/黑名单加通配符模式，未授权工具在 `tools/list` 发现视图中静默剔除，实现最小权限暴露（防 OWASP MCP02 权限蔓延）；
+    - **全流程端点打通与全量门禁**: `McpRpcController` 实现响应式 `tools/list` 聚合发现与过滤，105 个单元与集成测试全部 PASS，Javadoc 零警告，两轮审核通过并合入 `main`。
 
 ---
 
-## 3. 当前进展与下一个任务目标：TASK-010 (动态路由配置热加载与工具命名空间聚合深化)
+## 3. 当前进展与下一个任务目标：TASK-011 (远端 HTTP / SSE 反向代理与出站客户端池落地)
 
-### 3.1 刚完成任务：TASK-009 (mcp-governance-gateway 模块骨架搭建与路由聚合引擎实现)
-- **状态**: 人类授权合并，分支 `task/TASK-009-gateway-scaffold` 已成功合并入 `main`，状态机达成 `DONE`。
+### 3.1 刚完成任务：TASK-010 (动态路由配置加载、tools/list 聚合视图与租户级 ACL 过滤深化)
+- **状态**: 人类授权合并，分支 `task/TASK-010-dynamic-routes-and-aggregation` 已成功合并入 `main`，状态机达成 `DONE`。
 
-### 3.2 下一个任务目标：TASK-010 (动态路由文件解析加载、tools/list 聚合视图与租户级 ACL 过滤)
+### 3.2 下一个任务目标：TASK-011 (远端 HTTP / SSE 反向代理与出站客户端池落地)
 - **所属阶段**: Phase 3 核心推进
 - **核心模块**: `mcp-governance-gateway`
 - **核心目标**:
-  1. 支持从独立外部配置文件（如 `gateway-routes.json` 或 `gateway-routes.yml`）解析加载路由表与下游定义；
-  2. 实现 `ToolAggregator`：并发向各下游 Server 查询 `tools/list`，注入命名空间前缀（`prefix`），并根据租户级 ACL（`RouteGovernanceConfig`）自动过滤被禁止的工具，实现按最小权限暴露（防 OWASP MCP02）；
-  3. 扩充 WebFlux 响应式端点与单测，验证多 upstream 场景下的命名空间防冲突与租户隔离发现；
-  4. 确保 `mvn verify` 全绿，Javadoc 零警告。
+  1. 依据 ADR 0008 与 Blueprint 0008，实现真实出站客户端：`HttpUpstreamClient` 与 `SseUpstreamClient`（基于 WebClient / Reactive 管道）；
+  2. 实现长连接客户端连接池与生命周期管理 `UpstreamClientFactory`；
+  3. 将 `tools/call` 的 `GatewayExecutionAdapter` 与实际下游出站代理端点连通，支持请求转发、超时熔断与响应反序列化；
+  4. 遵循安全基线：支持通过 `auth.tokenRef` 解析环境变量注入下游 Bearer Token，严禁硬编码；
+  5. 确保 `mvn verify` 全绿，Javadoc 零警告。
 
 ---
 
@@ -84,7 +90,7 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1、Phase 2 全部圆满收官，Phase 3 的首个实施任务 TASK-009（网关骨架搭建与路由聚合引擎实现）已正式验收并合并入 main 分支。
+Phase 1、Phase 2 全部圆满收官，Phase 3 的前两个实施任务 TASK-009 与 TASK-010（动态路由配置加载、tools/list 聚合视图与租户级 ACL 过滤深化）已正式验收并合并入 main 分支。
 请严格阅读仓库根目录的核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
@@ -97,6 +103,6 @@ Phase 1、Phase 2 全部圆满收官，Phase 3 的首个实施任务 TASK-009（
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-010：动态路由配置加载、tools/list 聚合视图与租户级 ACL 过滤深化。
+启动 TASK-011：远端 HTTP / SSE 反向代理与出站客户端池落地。
 根据 ADR 0008 与 Blueprint 0008 分派研发工程师队友开展隔离分支开发与测试，代码审核员执行两遍审查，待通过后向我汇报。所有代码注释、文档一律使用中文。
 ```

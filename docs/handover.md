@@ -1,8 +1,8 @@
 # 项目换届与会话交接指南 (Handover Guide)
 
 > **当前维护者**: MCP Governance 统筹中枢  
-> **更新时间**: 2026-10-31  
-> **当前版本**: v0.3.0-alpha (Phase 3 网关骨架与路由引擎收官)  
+> **更新时间**: 2026-11-02  
+> **当前版本**: v0.3.0-alpha (Phase 3 网关核心出站代理与长连接池收官)  
 > **对应阶段**: Phase 3 (独立 MCP 网关建设中)
 
 ---
@@ -69,20 +69,27 @@
 
 ---
 
-## 3. 当前进展与下一个任务目标：TASK-011 (远端 HTTP / SSE 反向代理与出站客户端池落地)
+## 3. 当前进展与下一个任务目标：TASK-012 (受控本地 STDIO 进程池托管与 Phase 3 独立网关收官)
 
-### 3.1 刚完成任务：TASK-010 (动态路由配置加载、tools/list 聚合视图与租户级 ACL 过滤深化)
-- **状态**: 人类授权合并，分支 `task/TASK-010-dynamic-routes-and-aggregation` 已成功合并入 `main`，状态机达成 `DONE`。
+### 3.1 刚完成任务：TASK-011 (远端 HTTP / SSE 反向代理与出站客户端池落地)
+- **状态**: 人类授权合并，分支 `task/TASK-011-upstream-client-pool` 已成功合并入 `main`，状态机达成 `DONE`。
+- **核心成果**:
+  1. 定义纯 Java `UpstreamClient` SPI 统一出站接口，屏蔽协议底层差异；
+  2. 实现了基于 Spring WebFlux 的 `HttpUpstreamClient` 与支持长连接会话、动态 endpoint 协商的 `SseUpstreamClient`；
+  3. 实现了 `TokenRefResolver`，严格遵循安全基线解析环境变量，独立注入下游鉴权头（Bearer/ApiKey/Basic），严禁透传上游客户端原始凭证，日志绝对脱敏；
+  4. 实现了 `UpstreamClientPool` 与 `UpstreamClientFactory`，支持长连接复用与优雅停机销毁；
+  5. 改造 `DefaultGatewayExecutionAdapter`（非阻塞 `executeReactive`）与 `DefaultUpstreamToolProvider`，打通真实调用与 `tools/list` 探测；
+  6. 全模块构建成功，100+ 测试全部绿色 PASS，Javadoc 零警告。
 
-### 3.2 下一个任务目标：TASK-011 (远端 HTTP / SSE 反向代理与出站客户端池落地)
-- **所属阶段**: Phase 3 核心推进
+### 3.2 下一个任务目标：TASK-012 (受控本地 STDIO 进程池托管与 Phase 3 独立网关综合验收)
+- **所属阶段**: Phase 3 终局收官
 - **核心模块**: `mcp-governance-gateway`
 - **核心目标**:
-  1. 依据 ADR 0008 与 Blueprint 0008，实现真实出站客户端：`HttpUpstreamClient` 与 `SseUpstreamClient`（基于 WebClient / Reactive 管道）；
-  2. 实现长连接客户端连接池与生命周期管理 `UpstreamClientFactory`；
-  3. 将 `tools/call` 的 `GatewayExecutionAdapter` 与实际下游出站代理端点连通，支持请求转发、超时熔断与响应反序列化；
-  4. 遵循安全基线：支持通过 `auth.tokenRef` 解析环境变量注入下游 Bearer Token，严禁硬编码；
-  5. 确保 `mvn verify` 全绿，Javadoc 零警告。
+  1. 依据 ADR 0008 与 Blueprint 0008，实现受控的本地进程出站客户端 `StdioUpstreamClient` 与 `ManagedStdioProcessPool`；
+  2. 严格遵循安全基线：STDIO 命令执行必须被视为不受信任代码执行，仅允许通过配置文件白名单预定义可执行文件与固定入参，严禁动态命令拼接，继承最小环境变量子集；
+  3. 实现本地子进程的标准输入输出（stdin/stdout）基于 JSON-RPC 2.0 异步消息交换与优雅销毁；
+  4. 完善多协议混合代理场景端到端综合测试与性能基线压测；
+  5. 完成 Phase 3 结项复盘与发布准备。
 
 ---
 
@@ -90,7 +97,7 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1、Phase 2 全部圆满收官，Phase 3 的前两个实施任务 TASK-009 与 TASK-010（动态路由配置加载、tools/list 聚合视图与租户级 ACL 过滤深化）已正式验收并合并入 main 分支。
+Phase 1、Phase 2 全部圆满收官，Phase 3 的前三个核心任务 TASK-009、TASK-010 与 TASK-011（网关骨架、动态路由加载、工具聚合视图、租户级 ACL 过滤、远端 HTTP/SSE 出站客户端池与凭证注入）已正式验收并合并入 main 分支。
 请严格阅读仓库根目录的核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
@@ -103,6 +110,6 @@ Phase 1、Phase 2 全部圆满收官，Phase 3 的前两个实施任务 TASK-009
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-011：远端 HTTP / SSE 反向代理与出站客户端池落地。
+启动 TASK-012：受控本地 STDIO 进程池托管与 Phase 3 独立网关收官。
 根据 ADR 0008 与 Blueprint 0008 分派研发工程师队友开展隔离分支开发与测试，代码审核员执行两遍审查，待通过后向我汇报。所有代码注释、文档一律使用中文。
 ```

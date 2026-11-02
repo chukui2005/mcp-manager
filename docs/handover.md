@@ -83,15 +83,25 @@
 
 ---
 
-## 3. 当前进展与下一步建议 (Phase 3 圆满收官复盘)
+## 3. 当前进展与下一步建议 (新会话核心任务规划)
 
-至此，**Phase 3 独立网关所有 4 个核心任务（TASK-009 ~ TASK-012）全部圆满达成**！
-- `mcp-manager` 现已形成三大支柱基础设施：
-  1. **Phase 1 静态审计层**：`core` + `scanner` + `cli` + `action`（OWASP Top 10 规则、SARIF 2.1.0、ANSI 报告）；
-  2. **Phase 2 嵌入式治理层**：`starter`（纯 Java 责任链、Tool ACL 访问控制、入参正则校验、可观测性指标、不可变脱敏审计事件）；
-  3. **Phase 3 独立网关层**：`gateway`（响应式 WebFlux、动态路由、工具前缀隔离聚合、租户 ACL 过滤、HTTP/SSE 客户端连接池、受控本地 STDIO 进程池托管、SIEM 单行 JSON 审计）。
+至此，**Phase 1、Phase 2 与 Phase 3 的核心工程与安全加固已全部圆满达成**！
+- 架构资产已沉淀至 ADR 0000 ~ ADR 0009；
+- 发版标签 `v0.3.0-gateway` 已成功推送至 GitHub。
 
-下一步可进行 Phase 3 发版打标（如 `v0.3.0-gateway`），并准备后续控制台 UI 或高可用集群部署相关规划。
+### 下一个新会话的核心任务：TASK-014 (开源基建补齐与 Docker 容器化交付)
+1. **Docker 一键启动与容器化交付 (Dockerization)**：
+   - 编写 `mcp-governance-gateway/Dockerfile`（多阶段构建，极小体积 Alpine/Distroless JRE 17 运行时，非 root 安全用户运行，默认绑定 127.0.0.1）；
+   - 编写 `mcp-governance-cli/Dockerfile`，落实《AGENTS.md》规定的 `docker run ... scan` 一行命令跑通静态扫描体验；
+   - 编写根目录 `docker-compose.yml`，支持一键拉起独立网关与示例 Mock MCP 服务。
+2. **开源合规与项目门面补齐**：
+   - 编写规范的 `CONTRIBUTING.md`（贡献指南、PR 流水线与测试门禁）；
+   - 编写专业的 `SECURITY.md`（安全策略与漏洞披露流程）；
+   - 编写规范的 `CHANGELOG.md`（清晰记录 v0.1.0-scan、v0.2.0-starter、v0.3.0-gateway 演进史）；
+   - 生成标准的 Maven Wrapper（`mvnw`、`mvnw.cmd`、`.mvn/wrapper/`），确保任何机器零配置构建。
+3. **元数据与架构图同步**：
+   - 将根 POM 与子模块版本统一推进至正式发布基线；
+   - 更新 `AGENTS.md` 中的模块拓扑树，补充 `mcp-governance-gateway`。
 
 ---
 
@@ -99,14 +109,22 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1（静态扫描与 SARIF 审计）、Phase 2（Spring Boot Starter 嵌入式运行时治理）与 Phase 3（独立响应式 MCP 网关、HTTP/SSE 出站代理池、受控 STDIO 进程池托管）已全部圆满收官并合并入 main 分支。
-请严格阅读仓库根目录的核心基线文档：
+Phase 1、Phase 2、Phase 3 的核心研发与加固任务已全部合入 main 分支，并已正式发布 Tag: v0.3.0-gateway。
+请你严格阅读仓库根目录的核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
 3. docs/environment-baseline.md（技术与版本基线）
-4. docs/adr/0008-phase3-gateway-architecture-preview.md（网关架构 ADR）
-5. docs/architecture/0008-blueprint.md（网关技术实施蓝图）
+4. docs/adr/0009-gateway-governance-pipeline-and-resilience.md（网关加固 ADR）
+5. README.md 与 README.zh-CN.md（项目门面与路线图）
 
 【你的职责】：
-作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友，负责接力后续阶段任务规划或版本发布打标。
+作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
+
+【当前启动任务】：
+启动 TASK-014：开源基建补齐与 Docker 容器化交付。
+1. 落地 Docker 一键启动支持（网关 Dockerfile、CLI Dockerfile、docker-compose.yml）；
+2. 补齐开源规范文档（CONTRIBUTING.md、SECURITY.md、CHANGELOG.md）；
+3. 补齐 Maven Wrapper（mvnw / mvnw.cmd）；
+4. 同步根 POM 版本与 AGENTS.md 模块拓扑。
+请分派架构师队友产出设计蓝图与 ADR，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
 ```

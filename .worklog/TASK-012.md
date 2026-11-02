@@ -1,6 +1,6 @@
 # TASK-012: 受控本地 STDIO 进程池托管与 Phase 3 独立网关收官
 
-> **状态**: READY  
+> **状态**: READY_TO_LAND  
 > **任务 ID**: TASK-012  
 > **责任人**: engineer (研发), reviewer (审核), architect (架构守护), lead (统筹)  
 > **日期**: 2026-11-02  
@@ -56,8 +56,29 @@ Approved: Yes
 
 ---
 
-## 3. 审核员审查报告 (待代码审核员填入)
+## 3. 审核员审查报告
+
+审查员已对隔离分支 `task/TASK-012-stdio-pool` 提交的代码执行严格的【两遍分析审查法】：
+
+### 第一遍分析（正确性、契约一致性与并发安全）
+1. **JSON-RPC 2.0 异步双工协议实现**：`StdioUpstreamClient` 采用写锁保证 stdin 原子写入与刷新，stdout 独立守护线程持续按行解析并通过 `Sinks.One` 按 id 交付响应，逻辑正确；
+2. **防死锁与资源清理**：stderr 专用独立守护线程异步排空，避免 OS 管道缓冲区被 stderr 塞满引发子进程 hang 住；
+3. **两阶段进程回收**：`ManagedStdioProcessPool` 在 `destroy()` 时先尝试 `process.destroy()` 并留出 3 秒超时窗口，若超时未终止坚决调用 `process.destroyForcibly()` 强制终止，管道流与线程妥善释放，有效避免僵尸进程与句柄泄漏；
+4. **统一 SPI 与工厂模式**：`UpstreamClientFactory` 与 `ManagedStdioProcessPool`、`UpstreamClientPool` 规范整合，类型不外泄，符合架构原则。
+
+### 第二遍分析（机械安全扫描与反模式排查）
+1. **命令注入防范**：严格通过 `ProcessBuilder(List<String>)` 传递预置参数数组，无任何 shell 字符串拼接或 `sh -c` / `cmd /c` 调用，符合 OWASP MCP05 安全防线；
+2. **敏感环境变量沙箱隔离**：`sanitizeEnvironment` 严密过滤 `KEY`、`TOKEN`、`SECRET`、`PASSWORD`、`CREDENTIAL`、`AUTH` 等敏感变量，防止宿主机系统密钥泄漏给子进程，符合 OWASP MCP01 与《AGENTS.md》安全基线；
+3. **日志与脱敏**：错误处理和日志中无明文敏感凭据打印，符合项目安全合规标准；
+4. **构建门禁**：全工程 `mvn -B verify` 7 个模块测试 100% 通过（Gateway 43 个测试全部 PASS），`mvn javadoc:javadoc` 零警告。
+
+**审查结论**: `verdict: PASS`
 
 ---
 
 ## 4. 验收与结论
+
+- 状态机流转：`READY → IN_REVIEW → READY_TO_LAND`；
+- 所有代码注释、文档与提交全中文；
+- 架构守护与安全基线完全符合 ADR 0008 与 Blueprint 0008。
+- 准予合入 `main` 分支。

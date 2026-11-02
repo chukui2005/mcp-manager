@@ -9,7 +9,6 @@ import io.github.chukui2005.mcpgov.core.runtime.McpInvocationResult;
 import io.github.chukui2005.mcpgovernance.gateway.adapter.GatewayExecutionAdapter;
 import io.github.chukui2005.mcpgovernance.gateway.aggregation.ToolAggregator;
 import io.github.chukui2005.mcpgovernance.gateway.config.GatewayServerProperties;
-import io.github.chukui2005.mcpgovernance.gateway.config.RouteDefinition;
 import io.github.chukui2005.mcpgovernance.gateway.model.JsonRpcError;
 import io.github.chukui2005.mcpgovernance.gateway.model.JsonRpcRequest;
 import io.github.chukui2005.mcpgovernance.gateway.model.JsonRpcResponse;
@@ -201,30 +200,44 @@ public class McpRpcController {
             arguments = objectMapper.convertValue(rawArguments, new TypeReference<Map<String, Object>>() {});
         }
 
+        McpInvocationContext context;
         try {
-            McpInvocationContext context = executionAdapter.buildContext(matchResult, arguments, "mcp-gateway-agent");
-            McpInvocationResult invocationResult = executionAdapter.execute(context);
-
-            Map<String, Object> callResult = new HashMap<>();
-            List<Map<String, Object>> contentList = new ArrayList<>();
-            Map<String, Object> textContent = new HashMap<>();
-            textContent.put("type", "text");
-            textContent.put("text", objectMapper.writeValueAsString(invocationResult.result()));
-            contentList.add(textContent);
-
-            callResult.put("content", contentList);
-            callResult.put("isError", false);
-
-            return Mono.just(JsonRpcResponse.success(id, callResult));
-        } catch (McpAccessDeniedException e) {
-            log.warn("MCP 访问控制拒绝: tool={}, reason={}", aggregatedToolName, e.getMessage());
-            return Mono.just(JsonRpcResponse.error(id, JsonRpcError.accessDenied("访问拒绝: " + e.getMessage())));
-        } catch (McpGovernanceException e) {
-            log.warn("MCP 治理校验失败: tool={}, reason={}", aggregatedToolName, e.getMessage());
-            return Mono.just(JsonRpcResponse.error(id, new JsonRpcError(-32000, "治理校验失败: " + e.getMessage())));
+            context = executionAdapter.buildContext(matchResult, arguments, "mcp-gateway-agent");
         } catch (Exception e) {
-            log.error("执行 MCP 工具调用异常: tool={}", aggregatedToolName, e);
-            return Mono.just(JsonRpcResponse.error(id, JsonRpcError.internalError("执行失败: " + e.getMessage())));
+            return Mono.just(JsonRpcResponse.error(id, JsonRpcError.invalidParams("构建调用上下文失败: " + e.getMessage())));
         }
+
+        return executionAdapter.executeReactive(context)
+                .map(invocationResult -> {
+                    Map<String, Object> callResult = new HashMap<>();
+                    List<Map<String, Object>> contentList = new ArrayList<>();
+                    Map<String, Object> textContent = new HashMap<>();
+                    textContent.put("type", "text");
+                    try {
+                        textContent.put("text", objectMapper.writeValueAsString(
+                                invocationResult.result() != null ? invocationResult.result() : invocationResult.errorMessage()
+                        ));
+                    } catch (Exception e) {
+                        textContent.put("text", String.valueOf(invocationResult.result()));
+                    }
+                    contentList.add(textContent);
+
+                    callResult.put("content", contentList);
+                    callResult.put("isError", !invocationResult.success());
+
+                    return JsonRpcResponse.success(id, callResult);
+                })
+                .onErrorResume(McpAccessDeniedException.class, e -> {
+                    log.warn("MCP 访问控制拒绝: tool={}, reason={}", aggregatedToolName, e.getMessage());
+                    return Mono.just(JsonRpcResponse.error(id, JsonRpcError.accessDenied("访问拒绝: " + e.getMessage())));
+                })
+                .onErrorResume(McpGovernanceException.class, e -> {
+                    log.warn("MCP 治理校验失败: tool={}, reason={}", aggregatedToolName, e.getMessage());
+                    return Mono.just(JsonRpcResponse.error(id, new JsonRpcError(-32000, "治理校验失败: " + e.getMessage())));
+                })
+                .onErrorResume(Exception.class, e -> {
+                    log.error("执行 MCP 工具调用异常: tool={}", aggregatedToolName, e);
+                    return Mono.just(JsonRpcResponse.error(id, JsonRpcError.internalError("执行失败: " + e.getMessage())));
+                });
     }
 }

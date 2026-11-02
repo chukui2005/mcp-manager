@@ -3,6 +3,7 @@ package io.github.chukui2005.mcpgovernance.gateway.adapter;
 import io.github.chukui2005.mcpgov.core.runtime.McpInvocationContext;
 import io.github.chukui2005.mcpgov.core.runtime.McpInvocationResult;
 import io.github.chukui2005.mcpgovernance.gateway.route.RouteMatchResult;
+import reactor.core.publisher.Mono;
 
 import java.util.Map;
 
@@ -26,11 +27,20 @@ public interface GatewayExecutionAdapter {
     McpInvocationContext buildContext(RouteMatchResult matchResult, Map<String, Object> arguments, String clientName);
 
     /**
-     * 执行受治理的工具调用。
-     * 在路由匹配成功后，封装上下文并执行治理与模拟/真实调用。
+     * 同步执行受治理的工具调用（兼容历史与同步调用场景）。
      *
      * @param context Core 调用上下文
      * @return 调用结果对象
      */
     McpInvocationResult execute(McpInvocationContext context);
+
+    /**
+     * 响应式执行受治理的工具调用（非阻塞，支持响应式 WebFlux 线程安全调用）。
+     *
+     * @param context Core 调用上下文
+     * @return 响应式包含的工具调用执行结果
+     */
+    default Mono<McpInvocationResult> executeReactive(McpInvocationContext context) {
+        return Mono.fromCallable(() -> execute(context));
+    }
 }

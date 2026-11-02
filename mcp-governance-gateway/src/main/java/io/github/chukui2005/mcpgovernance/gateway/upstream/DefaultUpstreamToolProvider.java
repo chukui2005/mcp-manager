@@ -4,6 +4,7 @@ import io.github.chukui2005.mcpgov.core.model.GovernedTool;
 import io.github.chukui2005.mcpgovernance.gateway.config.RouteDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
@@ -15,9 +16,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 默认的下游工具提供器实现（提供内存模拟或各下游注册的工具表）。
+ * 默认的下游工具提供器实现。
+ * 协同 {@link UpstreamClientPool} 动态拉取下游 MCP Server 的工具列表 (tools/list)。
  * 支持在单元测试或无远端长连接池阶段通过编程方式预设各路由下的工具清单，
- * 若未预设则默认提供一个基础的 health/status 检测工具。
+ * 若未预设且无法连通真实客户端则默认提供基础的状态检测工具。
  *
  * @author chukui2005
  * @since 0.1.0
@@ -33,10 +35,23 @@ public class DefaultUpstreamToolProvider implements UpstreamToolProvider {
      */
     private final Map<String, List<GovernedTool>> toolsByRouteId = new ConcurrentHashMap<>();
 
+    private final UpstreamClientPool clientPool;
+
     /**
-     * 默认构造函数。
+     * 默认构造函数（无连接池注入）。
      */
     public DefaultUpstreamToolProvider() {
+        this(null);
+    }
+
+    /**
+     * 注入下游客户端连接池。
+     *
+     * @param clientPool 下游出站客户端池
+     */
+    @Autowired
+    public DefaultUpstreamToolProvider(UpstreamClientPool clientPool) {
+        this.clientPool = clientPool;
     }
 
     /**
@@ -66,18 +81,37 @@ public class DefaultUpstreamToolProvider implements UpstreamToolProvider {
         }
 
         String routeId = route.getId();
+
+        // 1. 优先检查是否有针对该路由的手动注册/Mock 工具（保证测试用例优先）
         List<GovernedTool> registered = toolsByRouteId.get(routeId);
         if (registered != null) {
             return Mono.just(Collections.unmodifiableList(registered));
         }
 
-        // 默认回退：生成一个基础的状态工具
+        // 2. 若存在连接池且路由具有网络地址，则尝试调用真实的客户端拉取 tools/list
+        if (clientPool != null && route.getProtocol() != null && route.getUri() != null && !route.getUri().trim().isEmpty()) {
+            try {
+                UpstreamClient client = clientPool.getClient(route);
+                return client.listTools()
+                        .onErrorResume(e -> {
+                            log.warn("通过客户端拉取下游 [{}] 工具清单失败: {}，回退到默认工具", routeId, e.getMessage());
+                            return fallbackTools(routeId);
+                        });
+            } catch (Exception e) {
+                log.warn("获取下游客户端失败: {}，回退到默认工具", e.getMessage());
+            }
+        }
+
+        // 3. 默认回退：生成一个基础的状态工具
+        return fallbackTools(routeId);
+    }
+
+    private Mono<List<GovernedTool>> fallbackTools(String routeId) {
         GovernedTool defaultTool = GovernedTool.of(
                 "status",
                 "下游服务 [" + routeId + "] 的运行状态工具",
                 Map.of("type", "object", "properties", Collections.emptyMap())
         );
-
         return Mono.just(List.of(defaultTool));
     }
 }

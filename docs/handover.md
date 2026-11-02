@@ -1,9 +1,9 @@
 # 项目换届与会话交接指南 (Handover Guide)
 
 > **当前维护者**: MCP Governance 统筹中枢  
-> **更新时间**: 2026-11-02  
-> **当前版本**: v0.3.0-gateway (Phase 3 独立 MCP 网关全面圆满收官)  
-> **对应阶段**: Phase 3 (完成收官) / Phase 4 筹备中
+> **更新时间**: 2026-11-03  
+> **当前版本**: v0.3.0-gateway + 开源容器化基建完备 (TASK-014 已合入 main)  
+> **对应阶段**: Phase 3 容器化与开源基建收官 / Phase 4 (控制面 UI 与多租户凭据体系) 筹备中
 
 ---
 
@@ -55,53 +55,40 @@
 10. **`TASK-008` Phase 2 结项验收复盘与 Phase 3 独立网关架构预研 (架构收官)**:
     - 产出 ADR 0008、Blueprint 0008 与网关路由契约 `docs/contracts/gateway-routes.schema.json`。
 11. **`TASK-009` mcp-governance-gateway 模块骨架搭建与路由聚合引擎实现 (Phase 3 启航收官)**:
-    - **模块与架构分层**: 新建 Maven 模块 `mcp-governance-gateway`，单向依赖纯 Java 模块 `mcp-governance-core`，引入 Spring Boot 3.3.4 Reactive WebFlux (`spring-boot-starter-webflux`) 与 Actuator；
-    - **配置与契约模型**: 严格映射 `gateway-routes.schema.json` 契约，实现 `GatewayServerProperties`（默认强制安全基线 `127.0.0.1:8080`）、`RouteDefinition`、`UpstreamProtocol`（sse/http/stdio）、`StdioCommandConfig`、`UpstreamAuthConfig`、`RouteGovernanceConfig`；
-    - **路由聚合管理**: 实现高并发安全的内存路由管理器 `RouteManager`，支持前缀冲突检测与**最长前缀优先匹配算法**（Longest Prefix Match）；
-    - **JSON-RPC 2.0 端点**: 实现 `JsonRpcRequest`、`JsonRpcResponse`、`JsonRpcError` 领域模型与 Streamable HTTP 控制器 `McpRpcController`（`POST /mcp/v1/rpc`），支持 `initialize` 握手、`tools/list` 命名空间聚合与 `tools/call` 前缀解析分发；
-    - **Core 治理适配**: 实现 `GatewayExecutionAdapter`，将入站请求打通转换为 Core 的不可变 `McpInvocationContext`；
-    - **全量门禁**: 全工程 7 个模块、95 个单元与集成测试 100% PASS，Javadoc 零警告，已正式合并入 `main`。
+    - **模块与架构分层**: 新建 Maven 模块 `mcp-governance-gateway`，引入 WebFlux 与 Actuator；
+    - **路由聚合管理**: 实现高并发安全的内存路由管理器 `RouteManager`，支持前缀冲突检测与最长前缀优先匹配算法；
+    - **JSON-RPC 2.0 端点**: 实现 `McpRpcController`（`POST /mcp/v1/rpc`），支持 `initialize` 握手、`tools/list` 与 `tools/call` 分发。
 12. **`TASK-010` 动态路由配置加载、tools/list 聚合视图与租户级 ACL 过滤深化 (Phase 3 核心深化收官)**:
-    - **契约对齐与动态加载**: 实现 `GatewayRoutesConfig` 与 `RouteConfigLoader`，支持从外部 JSON、流或 Classpath/File 资源加载路由表，支持动态热更新至 `RouteManager` 并重置；
-    - **工具发现与前缀命名空间防冲突**: 抽象 `UpstreamToolProvider` SPI，实现 `ToolAggregator` 并发拉取下游工具，注入唯一路由命名空间前缀 `prefix`，规避跨下游同名工具冲突与影子劫持风险（防 OWASP MCP03、MCP09）；
-    - **租户级 ACL 动态过滤**: 联动下游 `RouteGovernanceConfig` 并转换为 Core 模块不可变 `ToolAclPolicy`，支持白名单/黑名单加通配符模式，未授权工具在 `tools/list` 发现视图中静默剔除，实现最小权限暴露（防 OWASP MCP02 权限蔓延）；
-    - **全流程端点打通与全量门禁**: `McpRpcController` 实现响应式 `tools/list` 聚合发现与过滤，105 个单元与集成测试全部 PASS，Javadoc 零警告，两轮审核通过并合入 `main`。
-
----
-
+    - 实现 `GatewayRoutesConfig` 与 `RouteConfigLoader` 外部动态热加载；
+    - 抽象 `UpstreamToolProvider` SPI 与 `ToolAggregator` 动态聚合与命名空间前缀注入；
+    - 租户级 ACL 动态过滤，未授权工具在 `tools/list` 视图中静默剔除。
 13. **`TASK-011` 远端 HTTP / SSE 反向代理与出站客户端池落地 (Phase 3 核心出站收官)**:
     - 抽象 `UpstreamClient` SPI，实现响应式 `HttpUpstreamClient` 与 `SseUpstreamClient`；
     - 落地 `TokenRefResolver` 独立鉴权头安全注入（严禁透传上游凭据）；
     - 落地 `UpstreamClientPool` 长连接池与 `DefaultGatewayExecutionAdapter` 响应式转发。
 14. **`TASK-012` 受控本地 STDIO 进程池托管与 Phase 3 独立网关收官 (Phase 3 终局圆满收官)**:
-    - **受控本地进程客户端**: 实现 `StdioUpstreamClient`，采用 `ProcessBuilder(List<String>)` 数组启动，杜绝 Shell 动态命令拼接注入风险；
-    - **敏感凭证隔离沙箱**: 实现 `sanitizeEnvironment` 严密过滤宿主机环境变量，彻底剥离含有 `KEY`、`TOKEN`、`SECRET`、`PASSWORD`、`CREDENTIAL`、`AUTH` 等敏感字样的变量；
-    - **异步双工 I/O 与防死锁**: 标准输入加锁按行原子刷新；标准输出独立守护线程解析分发 JSON-RPC 2.0；标准错误专用独立守护线程异步排空，避免管道死锁；
-    - **生命周期托管池**: 实现 `ManagedStdioProcessPool`，落地先优雅 SIGTERM 等待 3 秒再强制 SIGKILL 回收的两阶段停机，杜绝僵尸进程与句柄泄漏；
-    - **多协议端到端集成**: 验证 HTTP、SSE、STDIO 混合多协议路由注册、统一 `tools/list` 命名空间前缀聚合以及 tools/call 精确路由派发；
-    - **门禁验证**: 7 个模块全部构建通过，全工程 100+ 单元与集成测试 100% PASS，Javadoc 零警告。
+    - 实现 `StdioUpstreamClient`，采用 `ProcessBuilder(List<String>)` 数组启动防 Shell 注入；
+    - 实现敏感凭证环境变量清洗过滤隔离沙箱；
+    - 落地 `ManagedStdioProcessPool` 两阶段优雅安全停机（SIGTERM 3s -> SIGKILL）。
+15. **`TASK-014` 开源基建补齐与 Docker 容器化交付 (开源与基础设施收官)**:
+    - **容器化交付**: 交付 `mcp-governance-gateway/Dockerfile`（精简 Alpine JRE 17、非 root UID 10001:10001 运行、端口 18080、Actuator 健康检查探针）；交付 `mcp-governance-cli/Dockerfile`（Alpine JRE 17、非 root 用户、`/workspace` 工作目录直接挂载即扫）；交付根目录 `docker-compose.yml`（一键编排网关与配置挂载，端口 18080:18080）；
+    - **开源合规文档**: 补齐 `CONTRIBUTING.md`、`SECURITY.md`（48h/7d 漏洞披露 SLA）、`CHANGELOG.md`（涵盖 v0.1.0-scan, v0.2.0-starter, v0.3.0-gateway 全历程）；
+    - **构建包装器**: 补齐跨平台 `mvnw`、`mvnw.cmd` 与 Maven 3.9.9 包装器；
+    - **拓扑与版本一致性**: 统一模块版本 `0.1.0-SNAPSHOT`，更新《AGENTS.md》第 4 节项目目录树；
+    - **全量门禁**: 全工程 7 个模块、130 个单元与集成测试 100% 绿灯全部通过，已正式合入 `main`。
 
 ---
 
 ## 3. 当前进展与下一步建议 (新会话核心任务规划)
 
-至此，**Phase 1、Phase 2 与 Phase 3 的核心工程与安全加固已全部圆满达成**！
-- 架构资产已沉淀至 ADR 0000 ~ ADR 0009；
-- 发版标签 `v0.3.0-gateway` 已成功推送至 GitHub。
+至此，**Phase 1、Phase 2、Phase 3 以及开源容器化基建 (TASK-014) 已全部合入 main 分支**！
+- 架构资产已沉淀至 ADR 0000 ~ ADR 0010；
+- 全工程支持 Docker 一键启动、docker-compose 编排与 Maven Wrapper 零配置构建。
 
-### 下一个新会话的核心任务：TASK-014 (开源基建补齐与 Docker 容器化交付)
-1. **Docker 一键启动与容器化交付 (Dockerization)**：
-   - 编写 `mcp-governance-gateway/Dockerfile`（多阶段构建，极小体积 Alpine/Distroless JRE 17 运行时，非 root 安全用户运行，默认绑定 127.0.0.1）；
-   - 编写 `mcp-governance-cli/Dockerfile`，落实《AGENTS.md》规定的 `docker run ... scan` 一行命令跑通静态扫描体验；
-   - 编写根目录 `docker-compose.yml`，支持一键拉起独立网关与示例 Mock MCP 服务。
-2. **开源合规与项目门面补齐**：
-   - 编写规范的 `CONTRIBUTING.md`（贡献指南、PR 流水线与测试门禁）；
-   - 编写专业的 `SECURITY.md`（安全策略与漏洞披露流程）；
-   - 编写规范的 `CHANGELOG.md`（清晰记录 v0.1.0-scan、v0.2.0-starter、v0.3.0-gateway 演进史）；
-   - 生成标准的 Maven Wrapper（`mvnw`、`mvnw.cmd`、`.mvn/wrapper/`），确保任何机器零配置构建。
-3. **元数据与架构图同步**：
-   - 将根 POM 与子模块版本统一推进至正式发布基线；
-   - 更新 `AGENTS.md` 中的模块拓扑树，补充 `mcp-governance-gateway`。
+### 下一个新会话的核心任务建议：TASK-015 (Phase 4 筹备：Web 控制台/UI 治理或动态凭据托管)
+根据路线图，可启动 Phase 4 核心能力建设：
+1. **控制面可视化与动态管理 (Web Admin / Dashboard)** 或
+2. **多租户动态凭据代理与 OAuth 2.1 鉴权中心 (Token Vault)**。
 
 ---
 
@@ -109,22 +96,18 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1、Phase 2、Phase 3 的核心研发与加固任务已全部合入 main 分支，并已正式发布 Tag: v0.3.0-gateway。
+Phase 1、Phase 2、Phase 3 及容器化开源基建 (TASK-014) 已全部合入 main 分支。
 请你严格阅读仓库根目录的核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
 3. docs/environment-baseline.md（技术与版本基线）
-4. docs/adr/0009-gateway-governance-pipeline-and-resilience.md（网关加固 ADR）
+4. docs/adr/0010-open-source-infrastructure-and-dockerization.md（开源基建与容器化 ADR）
 5. README.md 与 README.zh-CN.md（项目门面与路线图）
 
 【你的职责】：
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-014：开源基建补齐与 Docker 容器化交付。
-1. 落地 Docker 一键启动支持（网关 Dockerfile、CLI Dockerfile、docker-compose.yml）；
-2. 补齐开源规范文档（CONTRIBUTING.md、SECURITY.md、CHANGELOG.md）；
-3. 补齐 Maven Wrapper（mvnw / mvnw.cmd）；
-4. 同步根 POM 版本与 AGENTS.md 模块拓扑。
-请分派架构师队友产出设计蓝图与 ADR，待我签署 Approved: Yes 后推进。所有文档、注释一律使用中文。
+推进下一个里程碑任务（如 TASK-015：Phase 4 控制面治理能力预研与实现）。
+所有任务严格执行状态机（DESIGN -> READY -> IN_REVIEW -> READY_TO_LAND -> DONE），未经人类在 .worklog/ 中签署 Approved: Yes 严禁动工，未经人类最终批准严禁擅自 commit/push 到 main。所有文档、注释一律使用中文。
 ```

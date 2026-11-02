@@ -82,7 +82,8 @@ DESIGN → READY → IN_REVIEW → READY_TO_LAND → DONE
 ├── mcp-governance-cli/            # picocli 入口
 ├── mcp-governance-action/         # GitHub Action wrapper
 ├── mcp-governance-rules-owasp/    # OWASP MCP Top 10 规则实现
-└── mcp-governance-spring-boot-starter/   # Phase 2
+├── mcp-governance-spring-boot-starter/   # Phase 2
+└── mcp-governance-gateway/        # Phase 3 独立控制面网关
 ```
 
 **硬性约束**：

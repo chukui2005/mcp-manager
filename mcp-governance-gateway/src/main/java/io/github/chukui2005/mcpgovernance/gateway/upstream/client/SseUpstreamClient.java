@@ -104,10 +104,12 @@ public class SseUpstreamClient implements UpstreamClient {
                 .defaultHeader(HttpHeaders.ACCEPT, MediaType.TEXT_EVENT_STREAM_VALUE)
                 .build();
 
-        // POST 交互专用客户端（Accept: application/json, Content-Type: application/json）
+        // POST 交互专用客户端（显式覆盖默认的 ServerSentEvent 编码，使用纯 application/json，避免被继承的 SSE Reader 冲突）
         this.postWebClient = baseBuilder.clone()
-                .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+                .defaultHeaders(headers -> {
+                    headers.set(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
+                    headers.set(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE);
+                })
                 .build();
 
         // 启动后台 SSE 监听
@@ -302,12 +304,19 @@ public class SseUpstreamClient implements UpstreamClient {
                 ? this.messagePostUri
                 : this.sseUri;
 
-        // 发送 POST 请求至 targetUri
+        // 发送 POST 请求至 targetUri，显式指定 Accept: application/json
         postWebClient.post()
                 .uri(targetUri)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
                 .bodyValue(request)
-                .retrieve()
-                .bodyToMono(JsonRpcResponse.class)
+                .exchangeToMono(clientResponse -> {
+                    if (clientResponse.statusCode().is2xxSuccessful()) {
+                        return clientResponse.bodyToMono(JsonRpcResponse.class);
+                    } else {
+                        return clientResponse.createException().flatMap(Mono::error);
+                    }
+                })
                 .subscribe(
                         directResponse -> {
                             // 如果 HTTP POST 直接响应了 JSON-RPC 结果，直接触发完成

@@ -1,6 +1,6 @@
 # TASK-012: 受控本地 STDIO 进程池托管与 Phase 3 独立网关收官
 
-> **状态**: READY_TO_LAND  
+> **状态**: DONE  
 > **任务 ID**: TASK-012  
 > **责任人**: engineer (研发), reviewer (审核), architect (架构守护), lead (统筹)  
 > **日期**: 2026-11-02  

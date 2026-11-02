@@ -90,7 +90,7 @@ class McpRpcControllerTest {
     }
 
     @Test
-    @DisplayName("测试 MCP 工具调用分发 tools/call (成功匹配路由并模拟执行)")
+    @DisplayName("测试 MCP 工具调用分发 tools/call (当匹配路由但无实体服务时如实返回错误)")
     void testToolsCallSuccess() {
         Map<String, Object> params = Map.of(
                 "name", "k8s_get_pods",
@@ -109,7 +109,7 @@ class McpRpcControllerTest {
                 .jsonPath("$.jsonrpc").isEqualTo("2.0")
                 .jsonPath("$.id").isEqualTo("call-101")
                 .jsonPath("$.result.content").isArray()
-                .jsonPath("$.result.isError").isEqualTo(false)
+                .jsonPath("$.result.isError").isEqualTo(true)
                 .jsonPath("$.error").doesNotExist();
     }
 
@@ -135,6 +135,39 @@ class McpRpcControllerTest {
                 .jsonPath("$.error").value(notNullValue())
                 .jsonPath("$.error.code").isEqualTo(-32601)
                 .jsonPath("$.error.message").value(equalTo("未找到工具对应的下游路由: unregistered_tool"));
+    }
+
+    @Test
+    @DisplayName("测试 MCP 保活探针 ping")
+    void testPing() {
+        JsonRpcRequest request = new JsonRpcRequest(10, "ping", Map.of());
+
+        webTestClient.post()
+                .uri("/mcp/v1/rpc")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus().isOk()
+                .expectHeader().contentType(MediaType.APPLICATION_JSON)
+                .expectBody()
+                .jsonPath("$.jsonrpc").isEqualTo("2.0")
+                .jsonPath("$.id").isEqualTo(10)
+                .jsonPath("$.result.status").isEqualTo("ok")
+                .jsonPath("$.error").doesNotExist();
+    }
+
+    @Test
+    @DisplayName("测试客户端通知 notifications/initialized 返回 204 No Content")
+    void testNotificationInitialized() {
+        JsonRpcRequest request = new JsonRpcRequest(null, "notifications/initialized", Map.of());
+
+        webTestClient.post()
+                .uri("/mcp/v1/rpc")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(request)
+                .exchange()
+                .expectStatus().isNoContent()
+                .expectBody().isEmpty();
     }
 
     @Test

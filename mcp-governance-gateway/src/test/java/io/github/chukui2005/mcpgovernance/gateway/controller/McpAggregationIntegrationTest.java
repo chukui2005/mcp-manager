@@ -117,7 +117,7 @@ class McpAggregationIntegrationTest {
     }
 
     @Test
-    @DisplayName("集成测试：调用被聚合的工具 tools/call 正常派发执行")
+    @DisplayName("集成测试：调用被聚合的工具 tools/call 正常派发执行（当后端未启动时如实返回 isError=true）")
     void testToolsCallAggregatedSuccess() {
         RouteDefinition fsRoute = new RouteDefinition(
                 "fs-server",
@@ -143,7 +143,7 @@ class McpAggregationIntegrationTest {
                 .expectBody()
                 .jsonPath("$.jsonrpc").isEqualTo("2.0")
                 .jsonPath("$.id").isEqualTo(2001)
-                .jsonPath("$.result.isError").isEqualTo(false)
+                .jsonPath("$.result.isError").isEqualTo(true)
                 .jsonPath("$.result.content[0].type").isEqualTo("text");
     }
 }

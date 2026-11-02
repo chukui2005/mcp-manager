@@ -1,8 +1,21 @@
 package io.github.chukui2005.mcpgovernance.gateway.adapter;
 
+import io.github.chukui2005.mcpgov.core.runtime.McpInterceptor;
+import io.github.chukui2005.mcpgov.core.runtime.McpInterceptorChain;
 import io.github.chukui2005.mcpgov.core.runtime.McpInvocationContext;
 import io.github.chukui2005.mcpgov.core.runtime.McpInvocationResult;
+import io.github.chukui2005.mcpgov.core.runtime.audit.AuditMcpInterceptor;
+import io.github.chukui2005.mcpgov.core.runtime.audit.DefaultMcpAuditPublisher;
+import io.github.chukui2005.mcpgov.core.runtime.audit.McpAuditPublisher;
+import io.github.chukui2005.mcpgov.core.runtime.metrics.InMemoryMcpMetricsCollector;
+import io.github.chukui2005.mcpgov.core.runtime.metrics.McpMetricsCollector;
+import io.github.chukui2005.mcpgov.core.runtime.metrics.MetricsMcpInterceptor;
+import io.github.chukui2005.mcpgov.core.runtime.policy.AclMode;
+import io.github.chukui2005.mcpgov.core.runtime.policy.ParameterValidationMcpInterceptor;
+import io.github.chukui2005.mcpgov.core.runtime.policy.ToolAclMcpInterceptor;
+import io.github.chukui2005.mcpgov.core.runtime.policy.ToolAclPolicy;
 import io.github.chukui2005.mcpgovernance.gateway.config.RouteDefinition;
+import io.github.chukui2005.mcpgovernance.gateway.config.RouteGovernanceConfig;
 import io.github.chukui2005.mcpgovernance.gateway.route.RouteManager;
 import io.github.chukui2005.mcpgovernance.gateway.route.RouteMatchResult;
 import io.github.chukui2005.mcpgovernance.gateway.upstream.UpstreamClient;
@@ -14,16 +27,18 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 /**
  * 默认网关执行适配器实现。
- * 负责构建 Core 的 McpInvocationContext，并在执行时协同 {@link UpstreamClientPool} 向真实的下游 MCP Server
- * 发送 tools/call 执行请求；当未配置下游实体连接时安全回退至模拟/回显模式。
- * 同时原生支持 {@link #executeReactive(McpInvocationContext)} 响应式无阻塞执行。
+ * 负责构建 Core 的 McpInvocationContext，并在执行时装配调用 {@link McpInterceptorChain}，
+ * 依次流经 Metrics、Audit、Tool ACL 与 Parameter Validation 治理流水线，杜绝安全绕过。
+ * 彻底移除伪造成功的 mock 回退逻辑，真实如实暴露下游错误。
  *
  * @author chukui2005
  * @since 0.1.0
@@ -35,24 +50,56 @@ public class DefaultGatewayExecutionAdapter implements GatewayExecutionAdapter {
 
     private final UpstreamClientPool clientPool;
     private final RouteManager routeManager;
+    private final McpInterceptorChain interceptorChain;
 
     /**
-     * 默认构造函数（无注入时仅使用回显/模拟模式）。
+     * 默认无参构造函数（使用独立默认拦截链与空连接池）。
      */
     public DefaultGatewayExecutionAdapter() {
-        this(null, null);
+        this(null, null, null, null, null);
     }
 
     /**
-     * 全参构造函数，注入连接池与路由管理器。
+     * 基础双参构造函数。
      *
      * @param clientPool   出站客户端连接池
      * @param routeManager 路由管理器
      */
-    @Autowired
     public DefaultGatewayExecutionAdapter(UpstreamClientPool clientPool, RouteManager routeManager) {
+        this(clientPool, routeManager, null, null, null);
+    }
+
+    /**
+     * 全参构造函数，注入连接池、路由管理器及可选治理切面。
+     *
+     * @param clientPool       出站客户端连接池
+     * @param routeManager     路由管理器
+     * @param interceptorChain 治理拦截链（可选，若未指定则自动装配）
+     * @param metricsCollector 遥测指标收集器（可选）
+     * @param auditPublisher   审计事件发布器（可选）
+     */
+    @Autowired
+    public DefaultGatewayExecutionAdapter(
+            @Autowired(required = false) UpstreamClientPool clientPool,
+            @Autowired(required = false) RouteManager routeManager,
+            @Autowired(required = false) McpInterceptorChain interceptorChain,
+            @Autowired(required = false) McpMetricsCollector metricsCollector,
+            @Autowired(required = false) McpAuditPublisher auditPublisher) {
         this.clientPool = clientPool;
         this.routeManager = routeManager;
+
+        if (interceptorChain != null) {
+            this.interceptorChain = interceptorChain;
+        } else {
+            List<McpInterceptor> defaultInterceptors = new ArrayList<>();
+            McpMetricsCollector mc = metricsCollector != null ? metricsCollector : new InMemoryMcpMetricsCollector();
+            McpAuditPublisher ap = auditPublisher != null ? auditPublisher : new DefaultMcpAuditPublisher();
+
+            defaultInterceptors.add(new MetricsMcpInterceptor(mc));
+            defaultInterceptors.add(new AuditMcpInterceptor(ap));
+            defaultInterceptors.add(new ParameterValidationMcpInterceptor(Collections.emptyList()));
+            this.interceptorChain = new McpInterceptorChain(defaultInterceptors);
+        }
     }
 
     @Override
@@ -64,6 +111,7 @@ public class DefaultGatewayExecutionAdapter implements GatewayExecutionAdapter {
 
         Map<String, Object> attributes = new HashMap<>();
         attributes.put("serverId", serverId);
+        attributes.put(AuditMcpInterceptor.ATTR_CALLER_ID, safeClient);
         attributes.put("callerApplication", safeClient);
         attributes.put("matchedPrefix", matchResult.getMatchedPrefix());
 
@@ -77,72 +125,92 @@ public class DefaultGatewayExecutionAdapter implements GatewayExecutionAdapter {
 
     @Override
     public McpInvocationResult execute(McpInvocationContext context) {
-        long start = System.currentTimeMillis();
-        String serverId = (String) context.attributes().getOrDefault("serverId", "unknown");
+        return executeReactive(context).block();
+    }
 
-        // 如果存在客户端连接池且为真实运行环境，尝试直接派发
-        if (clientPool != null && routeManager != null) {
-            Optional<RouteDefinition> routeOpt = routeManager.getRouteById(serverId);
-            if (routeOpt.isPresent()) {
-                RouteDefinition route = routeOpt.get();
-                if (isRouteExecutable(route)) {
-                    try {
-                        UpstreamClient client = clientPool.getClient(route);
-                        return client.callTool(context.toolName(), context.arguments())
-                                .onErrorResume(e -> fallbackMockResult(context, start, serverId))
-                                .block();
-                    } catch (Exception e) {
-                        return fallbackMockResult(context, start, serverId).block();
-                    }
-                }
-            }
-        }
-
-        return fallbackMockResult(context, start, serverId).block();
+    /**
+     * 获取当前装配的治理拦截链。
+     *
+     * @return 拦截器链
+     */
+    public McpInterceptorChain getInterceptorChain() {
+        return interceptorChain;
     }
 
     @Override
     public Mono<McpInvocationResult> executeReactive(McpInvocationContext context) {
-        long start = System.currentTimeMillis();
         String serverId = (String) context.attributes().getOrDefault("serverId", "unknown");
-        String caller = (String) context.attributes().getOrDefault("callerApplication", "anonymous");
+        String caller = (String) context.attributes().getOrDefault(AuditMcpInterceptor.ATTR_CALLER_ID, "anonymous");
 
-        log.info("网关派发受治理工具调用: tool={}, serverId={}, caller={}",
-                context.toolName(), serverId, caller);
+        log.info("网关开始执行治理调用: tool={}, serverId={}, caller={}", context.toolName(), serverId, caller);
 
-        // 如果存在连接池与路由管理器，则优先路由至真实出站客户端执行
-        if (clientPool != null && routeManager != null) {
-            Optional<RouteDefinition> routeOpt = routeManager.getRouteById(serverId);
-            if (routeOpt.isPresent()) {
-                RouteDefinition route = routeOpt.get();
-                // 若为有效出站协议 (HTTP/SSE 具有有效 uri，或 STDIO 具有有效命令配置)
-                if (isRouteExecutable(route)) {
-                    try {
-                        UpstreamClient client = clientPool.getClient(route);
-                        return client.callTool(context.toolName(), context.arguments())
-                                .flatMap(result -> {
-                                    // 若真实调用被拒绝或连接中断，在无远端实体时提供平滑 mock 回退（如单测静态路由无真实 Server 场景）
-                                    if (!result.success() && result.errorMessage() != null
-                                            && (result.errorMessage().contains("Connection refused") || result.errorMessage().contains("连接失败"))) {
-                                        log.warn("下游服务连接失败，回退至模拟执行: route={}", serverId);
-                                        return fallbackMockResult(context, start, serverId);
-                                    }
-                                    return Mono.just(result);
-                                })
-                                .onErrorResume(e -> {
-                                    log.warn("调用下游 [{}] 异常: {}，回退到模拟执行", serverId, e.getMessage());
-                                    return fallbackMockResult(context, start, serverId);
-                                });
-                    } catch (Exception e) {
-                        log.warn("获取下游客户端 [{}] 失败: {}，回退到模拟执行", serverId, e.getMessage());
-                        return fallbackMockResult(context, start, serverId);
+        return Mono.defer(() -> {
+            McpInvocationContext preHandledContext;
+            ToolAclMcpInterceptor routeAclInterceptor = null;
+
+            // 1. 若当前路由配置了特定的 Tool ACL 规则，动态进行校验
+            if (routeManager != null) {
+                Optional<RouteDefinition> routeOpt = routeManager.getRouteById(serverId);
+                if (routeOpt.isPresent()) {
+                    RouteGovernanceConfig gov = routeOpt.get().getGovernance();
+                    if (gov != null && (gov.getAclMode() != null || !gov.getAllowedTools().isEmpty() || !gov.getDeniedTools().isEmpty())) {
+                        AclMode aclMode = "BLACKLIST".equalsIgnoreCase(gov.getAclMode()) ? AclMode.BLACKLIST : AclMode.WHITELIST;
+                        ToolAclPolicy aclPolicy = new ToolAclPolicy(true, aclMode, gov.getAllowedTools(), gov.getDeniedTools());
+                        routeAclInterceptor = new ToolAclMcpInterceptor(aclPolicy);
                     }
                 }
             }
-        }
 
-        // 回退逻辑：模拟/回显响应
-        return fallbackMockResult(context, start, serverId);
+            try {
+                // 执行基础链的 preHandle（如 Metrics、Audit 等）
+                preHandledContext = this.interceptorChain.applyPreHandle(context);
+                if (routeAclInterceptor != null) {
+                    preHandledContext = routeAclInterceptor.preHandle(preHandledContext);
+                }
+            } catch (Throwable t) {
+                this.interceptorChain.applyOnError(context, t);
+                return Mono.error(t);
+            }
+
+            final McpInvocationContext finalCtx = preHandledContext;
+            long start = System.currentTimeMillis();
+
+            // 2. 调度真实下游客户端
+            Mono<McpInvocationResult> downstreamInvocation;
+            if (clientPool != null && routeManager != null) {
+                Optional<RouteDefinition> routeOpt = routeManager.getRouteById(serverId);
+                if (routeOpt.isPresent()) {
+                    RouteDefinition route = routeOpt.get();
+                    if (isRouteExecutable(route)) {
+                        try {
+                            UpstreamClient client = clientPool.getClient(route);
+                            downstreamInvocation = client.callTool(finalCtx.toolName(), finalCtx.arguments());
+                        } catch (Exception e) {
+                            long durationMs = System.currentTimeMillis() - start;
+                            downstreamInvocation = Mono.just(McpInvocationResult.failure("获取下游客户端失败: " + e.getMessage(), durationMs));
+                        }
+                    } else {
+                        long durationMs = System.currentTimeMillis() - start;
+                        downstreamInvocation = Mono.just(McpInvocationResult.failure("下游路由不可执行或配置无效: " + serverId, durationMs));
+                    }
+                } else {
+                    long durationMs = System.currentTimeMillis() - start;
+                    downstreamInvocation = Mono.just(McpInvocationResult.failure("未匹配到下游路由定义: " + serverId, durationMs));
+                }
+            } else {
+                long durationMs = System.currentTimeMillis() - start;
+                downstreamInvocation = Mono.just(McpInvocationResult.failure("网关未初始化下游连接池或路由管理器", durationMs));
+            }
+
+            // 3. 执行 postHandle 与 onError 闭环
+            return downstreamInvocation
+                    .map(result -> {
+                        return this.interceptorChain.applyPostHandle(finalCtx, result);
+                    })
+                    .doOnError(err -> {
+                        this.interceptorChain.applyOnError(finalCtx, err);
+                    });
+        });
     }
 
     private boolean isRouteExecutable(RouteDefinition route) {
@@ -154,16 +222,5 @@ public class DefaultGatewayExecutionAdapter implements GatewayExecutionAdapter {
                     && !route.getStdioCommand().getCommand().trim().isEmpty();
         }
         return route.getUri() != null && !route.getUri().trim().isEmpty();
-    }
-
-    private Mono<McpInvocationResult> fallbackMockResult(McpInvocationContext context, long start, String serverId) {
-        Map<String, Object> mockPayload = new HashMap<>();
-        mockPayload.put("tool", context.toolName());
-        mockPayload.put("serverId", serverId);
-        mockPayload.put("status", "SUCCESS");
-        mockPayload.put("arguments", context.arguments());
-
-        long durationMs = System.currentTimeMillis() - start;
-        return Mono.just(McpInvocationResult.success(mockPayload, durationMs));
     }
 }

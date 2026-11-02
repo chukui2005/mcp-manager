@@ -134,12 +134,14 @@ public class SseUpstreamClient implements UpstreamClient {
                         this::handleSseEvent,
                         error -> {
                             if (!closed) {
-                                log.warn("下游 SSE 路由 [{}] 连接异常: {}", routeId, error.getMessage());
+                                log.warn("下游 SSE 路由 [{}] 连接异常: {}，准备重连...", routeId, error.getMessage());
+                                scheduleReconnect();
                             }
                         },
                         () -> {
                             if (!closed) {
-                                log.info("下游 SSE 路由 [{}] 连接正常结束", routeId);
+                                log.info("下游 SSE 路由 [{}] 连接正常结束，准备重连...", routeId);
+                                scheduleReconnect();
                             }
                         }
                 );
@@ -204,6 +206,8 @@ public class SseUpstreamClient implements UpstreamClient {
 
         return sendRpcAndAwait(rpcRequest)
                 .timeout(requestTimeout)
+                .retryWhen(reactor.util.retry.Retry.backoff(2, Duration.ofMillis(300))
+                        .filter(ex -> !(ex instanceof McpGovernanceException)))
                 .map(response -> {
                     if (response.getError() != null) {
                         throw new McpGovernanceException("下游 SSE 返回 tools/list 错误: " + response.getError().getMessage());
@@ -265,6 +269,7 @@ public class SseUpstreamClient implements UpstreamClient {
 
         return sendRpcAndAwait(rpcRequest)
                 .timeout(Duration.ofSeconds(3))
+                .retryWhen(reactor.util.retry.Retry.backoff(2, Duration.ofMillis(300)))
                 .map(response -> response.getError() == null)
                 .onErrorReturn(false);
     }
@@ -322,7 +327,24 @@ public class SseUpstreamClient implements UpstreamClient {
                         }
                 );
 
-        return sink.asMono();
+        // 核心加固：挂载 doFinally，无论完成、超时错误或下游取消，均确保移除
+        return sink.asMono()
+                .doFinally(signalType -> pendingRequests.remove(reqId));
+    }
+
+    /**
+     * 调度断线指数退避重连。
+     */
+    private void scheduleReconnect() {
+        if (closed) {
+            return;
+        }
+        Mono.delay(Duration.ofSeconds(2))
+                .subscribe(ignore -> {
+                    if (!closed) {
+                        connectSse();
+                    }
+                });
     }
 
     /**

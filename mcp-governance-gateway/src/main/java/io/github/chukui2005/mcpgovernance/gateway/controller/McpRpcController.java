@@ -17,6 +17,7 @@ import io.github.chukui2005.mcpgovernance.gateway.route.RouteMatchResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,7 +34,7 @@ import java.util.Optional;
 /**
  * MCP 网关入站响应式 JSON-RPC 控制器。
  * 遵循 MCP 规范，处理 Streamable HTTP (POST /mcp/v1/rpc) 端点调用。
- * 支持 initialize, tools/list, tools/call 及异常错误处理。
+ * 支持 initialize, ping, notifications/initialized, tools/list, tools/call 及异常错误处理。
  *
  * @author chukui2005
  * @since 0.1.0
@@ -75,34 +76,54 @@ public class McpRpcController {
      * 处理 Streamable HTTP JSON-RPC 入站请求。
      *
      * @param request 入站 JSON-RPC 请求
-     * @return 响应式封装的 JSON-RPC 响应
+     * @return 响应式封装的 HTTP 实体响应
      */
     @PostMapping(value = "/rpc", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public Mono<JsonRpcResponse> handleRpc(@RequestBody JsonRpcRequest request) {
+    public Mono<ResponseEntity<JsonRpcResponse>> handleRpc(@RequestBody JsonRpcRequest request) {
         if (request == null) {
-            return Mono.just(JsonRpcResponse.error(null, JsonRpcError.invalidRequest("请求体不能为空")));
+            return Mono.just(ResponseEntity.ok(JsonRpcResponse.error(null, JsonRpcError.invalidRequest("请求体不能为空"))));
         }
 
         Object id = request.getId();
         String method = request.getMethod();
 
         if (method == null || method.trim().isEmpty()) {
-            return Mono.just(JsonRpcResponse.error(id, JsonRpcError.invalidRequest("方法名 method 不能为空")));
+            return Mono.just(ResponseEntity.ok(JsonRpcResponse.error(id, JsonRpcError.invalidRequest("方法名 method 不能为空"))));
         }
 
         log.debug("收到 MCP JSON-RPC 请求: id={}, method={}", id, method);
 
+        // 规范处理：若为通知（id 为 null，或者为标准通知方法如 notifications/initialized），按协议无需响应包体
+        if (id == null || "notifications/initialized".equals(method)) {
+            log.info("收到客户端通知: method={}, id={}", method, id);
+            return Mono.just(ResponseEntity.noContent().build());
+        }
+
         switch (method) {
             case "initialize":
-                return Mono.just(handleInitialize(id, request.getParams()));
+                return Mono.just(ResponseEntity.ok(handleInitialize(id, request.getParams())));
+            case "ping":
+                return Mono.just(ResponseEntity.ok(handlePing(id)));
             case "tools/list":
-                return handleToolsList(id, request.getParams());
+                return handleToolsList(id, request.getParams()).map(ResponseEntity::ok);
             case "tools/call":
-                return handleToolsCall(id, request.getParams());
+                return handleToolsCall(id, request.getParams()).map(ResponseEntity::ok);
             default:
                 log.warn("未知或未支持的 JSON-RPC 方法: method={}", method);
-                return Mono.just(JsonRpcResponse.error(id, JsonRpcError.methodNotFound("不支持的方法: " + method)));
+                return Mono.just(ResponseEntity.ok(JsonRpcResponse.error(id, JsonRpcError.methodNotFound("不支持的方法: " + method))));
         }
+    }
+
+    /**
+     * 处理 MCP ping 保活探针。
+     *
+     * @param id 请求标识
+     * @return ping 成功响应
+     */
+    private JsonRpcResponse handlePing(Object id) {
+        Map<String, Object> pingResult = new HashMap<>();
+        pingResult.put("status", "ok");
+        return JsonRpcResponse.success(id, pingResult);
     }
 
     /**

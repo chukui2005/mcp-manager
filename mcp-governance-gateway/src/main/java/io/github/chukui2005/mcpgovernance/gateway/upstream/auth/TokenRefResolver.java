@@ -23,6 +23,7 @@ public class TokenRefResolver {
     private static final Logger log = LoggerFactory.getLogger(TokenRefResolver.class);
 
     private static final Pattern ENV_PLACEHOLDER_PATTERN = Pattern.compile("^\\$\\{([a-zA-Z0-9_]+)\\}$");
+    private static final Pattern PLAIN_ENV_NAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]+$");
 
     /**
      * 默认构造函数。
@@ -47,7 +48,7 @@ public class TokenRefResolver {
             return matcher.group(1);
         }
         // 直接为变量名（只包含字母数字下划线）
-        if (trimmed.matches("^[a-zA-Z0-9_]+$")) {
+        if (PLAIN_ENV_NAME_PATTERN.matcher(trimmed).matches()) {
             return trimmed;
         }
         log.warn("无法解析的环境变量引用表达式格式: {}", tokenRef);

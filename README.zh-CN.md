@@ -166,12 +166,13 @@ java -jar mcp-governance-cli/target/mcp-governance-cli-0.1.0-SNAPSHOT-all.jar \
   - [x] 运行时指标遥测与 Spring Boot Actuator 端点集成 (`/actuator/mcpGovernance`, 治理 OWASP MCP08)
   - [x] 不可变结构化审计事件 (`McpAuditEvent`)、递归敏感参数脱敏 (`SensitiveDataMasker`, 治理 OWASP MCP01)
   - [x] Spring 原生 `@EventListener` 异步事件与单行紧凑 JSON 格式导出 (开箱即用适配 SIEM/ELK)
-- **Phase 3: 独立 MCP 治理网关 (架构预研完成，进入实施)**
+- **Phase 3: 独立 MCP 治理网关 (已全面收官交付 - v0.3.0-gateway)**
   - [x] 独立 MCP 网关架构决策 (ADR 0008)、技术蓝图与路由契约 (`gateway-routes.schema.json`)
-  - [ ] `mcp-governance-gateway` 独立模块骨架与路由引擎 (TASK-009)
-  - [ ] 远端 SSE 与 Streamable HTTP 反向代理客户端 (TASK-010)
-  - [ ] 受控本地 STDIO 进程池托管与沙箱隔离 (TASK-011)
-  - [ ] 网关控制平面端点与 Docker 容器镜像发布 (TASK-012)
+  - [x] `mcp-governance-gateway` 独立模块搭建，采用 Spring Boot 3.3+ 响应式 WebFlux 与 Netty 架构 (TASK-009)
+  - [x] 动态路由加载、`tools/list` 命名空间前缀重写聚合与租户级 Tool ACL 最小权限过滤 (TASK-010)
+  - [x] 远端 HTTP 与 SSE 长连接出站反向代理客户端池 (`UpstreamClientPool`) 与环境变量凭据安全注入 (TASK-011)
+  - [x] 受控本地 STDIO 进程池托管 (`ManagedStdioProcessPool`)，具备敏感环境变量沙箱与两阶段优雅安全停机 (TASK-012)
+  - [x] 网关治理责任链全面贯通（Tools 调用严格阻断与审计下沉）、MCP 协议生命周期对齐与 CORS 跨域防护装配 (TASK-013)
 
 ---
 

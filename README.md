@@ -166,12 +166,13 @@ Add MCP static security scanning directly to `.github/workflows/ci.yml`:
   - [x] Runtime metrics telemetry & Spring Boot Actuator endpoint (`/actuator/mcpGovernance`, addressing OWASP MCP08)
   - [x] Immutable structured audit events (`McpAuditEvent`) & recursive parameter masking (`SensitiveDataMasker`, addressing OWASP MCP01)
   - [x] Spring native `@EventListener` & single-line compact JSON export (out-of-the-box SIEM/ELK integration)
-- **Phase 3: Standalone MCP Governance Gateway (Architecture Preview Completed)**
+- **Phase 3: Standalone MCP Governance Gateway (Completed - v0.3.0-gateway)**
   - [x] Standalone Gateway Architecture Decision (ADR 0008), Blueprint & Route Contract (`gateway-routes.schema.json`)
-  - [ ] `mcp-governance-gateway` standalone module scaffolding & routing engine (TASK-009)
-  - [ ] Remote SSE & Streamable HTTP reverse proxy clients (TASK-010)
-  - [ ] Managed local STDIO process pool with strict sandboxing (TASK-011)
-  - [ ] Gateway control plane endpoints & Docker containerization (TASK-012)
+  - [x] `mcp-governance-gateway` standalone module with Spring Boot 3.3+ Reactive WebFlux & Netty (TASK-009)
+  - [x] Dynamic route loading, `tools/list` namespace aggregation & tenant-level Tool ACL filtering (TASK-010)
+  - [x] Outbound HTTP & SSE reverse proxy client pool (`UpstreamClientPool`) with secure token resolution (TASK-011)
+  - [x] Managed local STDIO process pool (`ManagedStdioProcessPool`) with environment sandboxing & 2-stage shutdown (TASK-012)
+  - [x] Comprehensive gateway governance pipeline integration, ping/notification lifecycle alignment & CORS security (TASK-013)
 
 ---
 

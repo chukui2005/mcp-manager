@@ -85,7 +85,7 @@ public class DefaultGatewayExecutionAdapter implements GatewayExecutionAdapter {
             Optional<RouteDefinition> routeOpt = routeManager.getRouteById(serverId);
             if (routeOpt.isPresent()) {
                 RouteDefinition route = routeOpt.get();
-                if (route.getProtocol() != null && route.getUri() != null && !route.getUri().trim().isEmpty()) {
+                if (isRouteExecutable(route)) {
                     try {
                         UpstreamClient client = clientPool.getClient(route);
                         return client.callTool(context.toolName(), context.arguments())
@@ -115,8 +115,8 @@ public class DefaultGatewayExecutionAdapter implements GatewayExecutionAdapter {
             Optional<RouteDefinition> routeOpt = routeManager.getRouteById(serverId);
             if (routeOpt.isPresent()) {
                 RouteDefinition route = routeOpt.get();
-                // 若为远程网络协议 (HTTP, SSE)，则通过出站连接池派发执行
-                if (route.getProtocol() != null && route.getUri() != null && !route.getUri().trim().isEmpty()) {
+                // 若为有效出站协议 (HTTP/SSE 具有有效 uri，或 STDIO 具有有效命令配置)
+                if (isRouteExecutable(route)) {
                     try {
                         UpstreamClient client = clientPool.getClient(route);
                         return client.callTool(context.toolName(), context.arguments())
@@ -124,7 +124,7 @@ public class DefaultGatewayExecutionAdapter implements GatewayExecutionAdapter {
                                     // 若真实调用被拒绝或连接中断，在无远端实体时提供平滑 mock 回退（如单测静态路由无真实 Server 场景）
                                     if (!result.success() && result.errorMessage() != null
                                             && (result.errorMessage().contains("Connection refused") || result.errorMessage().contains("连接失败"))) {
-                                        log.warn("远端服务连接失败，回退至模拟执行: route={}", serverId);
+                                        log.warn("下游服务连接失败，回退至模拟执行: route={}", serverId);
                                         return fallbackMockResult(context, start, serverId);
                                     }
                                     return Mono.just(result);
@@ -143,6 +143,17 @@ public class DefaultGatewayExecutionAdapter implements GatewayExecutionAdapter {
 
         // 回退逻辑：模拟/回显响应
         return fallbackMockResult(context, start, serverId);
+    }
+
+    private boolean isRouteExecutable(RouteDefinition route) {
+        if (route == null || route.getProtocol() == null) {
+            return false;
+        }
+        if (route.getProtocol() == io.github.chukui2005.mcpgovernance.gateway.config.UpstreamProtocol.STDIO) {
+            return route.getStdioCommand() != null && route.getStdioCommand().getCommand() != null
+                    && !route.getStdioCommand().getCommand().trim().isEmpty();
+        }
+        return route.getUri() != null && !route.getUri().trim().isEmpty();
     }
 
     private Mono<McpInvocationResult> fallbackMockResult(McpInvocationContext context, long start, String serverId) {

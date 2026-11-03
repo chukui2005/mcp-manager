@@ -174,6 +174,35 @@ public class RouteManager {
     }
 
     /**
+     * 获取当前处于启用（在线）状态的路由数量。
+     *
+     * @return 在线路由数量
+     */
+    public int activeSize() {
+        return (int) routesById.values().stream().filter(RouteDefinition::isEnabled).count();
+    }
+
+    /**
+     * 并发安全地设置指定下游路由的启停状态。
+     *
+     * @param routeId 路由 ID
+     * @param enabled 是否启用
+     * @return true 表示成功更新；若未找到匹配的路由则返回 false
+     */
+    public synchronized boolean setRouteEnabled(String routeId, boolean enabled) {
+        if (routeId == null) {
+            return false;
+        }
+        RouteDefinition route = routesById.get(routeId);
+        if (route == null) {
+            return false;
+        }
+        route.setEnabled(enabled);
+        log.info("动态切换下游 MCP 路由状态: id={}, enabled={}", routeId, enabled);
+        return true;
+    }
+
+    /**
      * 动态更新指定下游路由的 ACL 策略。
      * 线程安全地修改对应路由的 {@link RouteGovernanceConfig}，实现策略实时生效。
      *

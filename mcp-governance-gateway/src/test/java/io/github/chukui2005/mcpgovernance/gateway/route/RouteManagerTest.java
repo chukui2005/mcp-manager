@@ -138,4 +138,31 @@ class RouteManagerTest {
         assertThat(updated.getGovernance().getAllowedTools()).doesNotContain("delete_file");
         assertThat(updated.getGovernance().getDeniedTools()).doesNotContain("delete_file");
     }
+
+    @Test
+    @DisplayName("测试 setRouteEnabled 与 activeSize 热启停下游路由")
+    void testSetRouteEnabled() {
+        RouteDefinition r1 = new RouteDefinition("srv-1", UpstreamProtocol.HTTP, "s1_", "http://127.0.0.1:8001");
+        RouteDefinition r2 = new RouteDefinition("srv-2", UpstreamProtocol.HTTP, "s2_", "http://127.0.0.1:8002");
+        routeManager.registerRoute(r1);
+        routeManager.registerRoute(r2);
+
+        assertThat(routeManager.size()).isEqualTo(2);
+        assertThat(routeManager.activeSize()).isEqualTo(2);
+
+        // 停用 srv-1
+        boolean updated = routeManager.setRouteEnabled("srv-1", false);
+        assertThat(updated).isTrue();
+        assertThat(routeManager.activeSize()).isEqualTo(1);
+        assertThat(routeManager.getRouteById("srv-1").get().isEnabled()).isFalse();
+
+        // 重新启用 srv-1
+        routeManager.setRouteEnabled("srv-1", true);
+        assertThat(routeManager.activeSize()).isEqualTo(2);
+        assertThat(routeManager.getRouteById("srv-1").get().isEnabled()).isTrue();
+
+        // 不存在的路由返回 false
+        boolean notFound = routeManager.setRouteEnabled("non-existing", false);
+        assertThat(notFound).isFalse();
+    }
 }

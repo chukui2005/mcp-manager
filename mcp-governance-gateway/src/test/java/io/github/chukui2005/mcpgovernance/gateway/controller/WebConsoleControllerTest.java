@@ -76,7 +76,7 @@ class WebConsoleControllerTest {
     }
 
     @Test
-    @DisplayName("测试 GET /api/v1/overview 接口返回契约结构")
+    @DisplayName("测试 GET /api/v1/overview 接口返回契约结构与品牌对齐")
     void testGetOverview() {
         // 模拟录入一次成功指标
         metricsCollector.record("demo_read_file", 15L, InvocationStatus.SUCCESS, null);
@@ -87,17 +87,20 @@ class WebConsoleControllerTest {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.gateway.status").isEqualTo("UP")
+                .jsonPath("$.gateway.brand").isEqualTo("mcp-governance")
                 .jsonPath("$.counts.upstreamCount").isEqualTo(1)
+                .jsonPath("$.counts.activeUpstreamCount").isEqualTo(1)
                 .jsonPath("$.counts.toolCount").isEqualTo(2)
+                .jsonPath("$.counts.activeToolCount").isEqualTo(2)
                 .jsonPath("$.summary.totalInvocations").isEqualTo(1)
                 .jsonPath("$.summary.totalSuccess").isEqualTo(1)
                 .jsonPath("$.summary.successRate").isEqualTo(1.0);
     }
 
     @Test
-    @DisplayName("测试 GET /api/v1/tools 与 POST /api/v1/tools/acl 动态策略修改")
+    @DisplayName("测试 GET /api/v1/tools 与 POST /api/v1/tools/acl 动态策略修改及 Tool Picker 联动")
     void testGetToolsAndDynamicAclUpdate() {
-        // 1. 初始查询，两个工具默认均为 ALLOWED
+        // 1. 初始查询，两个工具默认均为 ALLOWED，且 enabled 为 true
         webTestClient.get()
                 .uri("/api/v1/tools")
                 .exchange()
@@ -105,38 +108,109 @@ class WebConsoleControllerTest {
                 .expectBody()
                 .jsonPath("$.length()").isEqualTo(2)
                 .jsonPath("$[0].name").isEqualTo("demo_read_file")
-                .jsonPath("$[0].aclStatus").isEqualTo("ALLOWED");
+                .jsonPath("$[0].aclStatus").isEqualTo("ALLOWED")
+                .jsonPath("$[0].upstreamEnabled").isEqualTo(true)
+                .jsonPath("$[0].enabled").isEqualTo(true);
 
-        // 2. 动态下发 DENY 阻断 demo_read_file
+        // 2. 动态下发 enabled: false 禁用 demo_read_file (Tool Picker 取消勾选)
         webTestClient.post()
                 .uri("/api/v1/tools/acl")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("toolName", "demo_read_file", "action", "DENY"))
+                .bodyValue(Map.of("toolName", "demo_read_file", "enabled", false))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.success").isEqualTo(true)
                 .jsonPath("$.toolName").isEqualTo("demo_read_file")
-                .jsonPath("$.currentStatus").isEqualTo("DENIED");
+                .jsonPath("$.currentStatus").isEqualTo("DENIED")
+                .jsonPath("$.enabled").isEqualTo(false);
 
-        // 3. 再次查询工具列表，demo_read_file 的状态应已变为 DENIED
+        // 3. 再次查询工具列表，demo_read_file 的状态应已变为 DENIED，且 enabled 为 false
         webTestClient.get()
                 .uri("/api/v1/tools")
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
-                .jsonPath("$[0].aclStatus").isEqualTo("DENIED");
+                .jsonPath("$[0].aclStatus").isEqualTo("DENIED")
+                .jsonPath("$[0].enabled").isEqualTo(false);
 
-        // 4. 重新下发 ALLOW 放行
+        // 4. 重新下发 enabled: true 放行 (Tool Picker 勾选)
         webTestClient.post()
                 .uri("/api/v1/tools/acl")
                 .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(Map.of("toolName", "demo_read_file", "action", "ALLOW"))
+                .bodyValue(Map.of("toolName", "demo_read_file", "enabled", true))
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.success").isEqualTo(true)
-                .jsonPath("$.currentStatus").isEqualTo("ALLOWED");
+                .jsonPath("$.currentStatus").isEqualTo("ALLOWED")
+                .jsonPath("$.enabled").isEqualTo(true);
+    }
+
+    @Test
+    @DisplayName("测试 POST /api/v1/routes/status 热启停下游 Server 路由与大盘/工具联动")
+    void testUpdateRouteStatus() {
+        // 1. 停用 demo-service 路由
+        webTestClient.post()
+                .uri("/api/v1/routes/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("routeId", "demo-service", "enabled", false))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.success").isEqualTo(true)
+                .jsonPath("$.routeId").isEqualTo("demo-service")
+                .jsonPath("$.enabled").isEqualTo(false)
+                .jsonPath("$.status").isEqualTo("STOPPED");
+
+        // 2. 检查路由列表状态
+        webTestClient.get()
+                .uri("/api/v1/routes")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[0].enabled").isEqualTo(false)
+                .jsonPath("$[0].status").isEqualTo("STOPPED");
+
+        // 3. 检查大盘中在线数量变为 0，聚合工具数变为 0 (因为 Server 已停用)
+        webTestClient.get()
+                .uri("/api/v1/overview")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.counts.upstreamCount").isEqualTo(1)
+                .jsonPath("$.counts.activeUpstreamCount").isEqualTo(0)
+                .jsonPath("$.counts.toolCount").isEqualTo(0);
+
+        // 4. 检查全量工具列表中 upstreamEnabled 与 enabled 均变为 false
+        webTestClient.get()
+                .uri("/api/v1/tools")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$[0].upstreamEnabled").isEqualTo(false)
+                .jsonPath("$[0].enabled").isEqualTo(false);
+
+        // 5. 重新热启用 demo-service 路由
+        webTestClient.post()
+                .uri("/api/v1/routes/status")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("routeId", "demo-service", "enabled", true))
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.success").isEqualTo(true)
+                .jsonPath("$.enabled").isEqualTo(true)
+                .jsonPath("$.status").isEqualTo("UP");
+
+        // 6. 验证恢复在线
+        webTestClient.get()
+                .uri("/api/v1/overview")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.counts.activeUpstreamCount").isEqualTo(1)
+                .jsonPath("$.counts.toolCount").isEqualTo(2);
     }
 
     @Test

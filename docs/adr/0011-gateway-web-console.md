@@ -1,4 +1,4 @@
-# 0011. 嵌入式轻量 Web 控制台架构与响应式控制面 API 设计
+# 0011. 内置轻量 Web 控制台、Server 热启停与 Tool Picker 勾选治理架构
 
 * **状态**: 提议中 (Proposed)
 * **日期**: 2026-11-03
@@ -11,83 +11,113 @@
 
 在经历 Phase 1（静态扫描器）、Phase 2（Starter 运行时切面）以及 Phase 3（独立控制面网关 `mcp-governance-gateway`）的建设后，网关已具备了多协议接入、路由聚合、动态前缀重写、不可变责任链治理（Metrics/Audit/ACL/Validation）以及 Docker 一键启动能力。
 
-然而，当前网关存在以下核心体验与运维短板：
-1. **控制面黑盒化，缺乏直观的可视化界面**：
-   - 当前运维人员与开发者查看工具资产、指标聚合和审计日志时，只能依赖 curl 访问 Actuator 端点（`/actuator/mcpGovernance`）或查阅控制台日志，调试门槛高，缺乏一览式监控体验；
-2. **缺乏动态交互式策略管控手段**：
-   - 现阶段调整 Tool ACL 策略需手动修改配置文件并重载，无法在 Web UI 上实现“一键熔断/放行”某个高危工具；
-3. **技术栈选型约束与避免外部打包依赖**：
-   - 根据《AGENTS.md》使命与不可协商约束，网关必须保持 Java 原生、轻量可移植的极简原则。引入复杂的 Node.js / Webpack / Vite / React 前端编译流水线将严重拖慢构建速度，破坏纯 Maven / Docker 的单一步骤交付体验；
-4. **开源社区展示度不足**：
-   - GitHub 项目门面急需现代化控制台大盘展示图与架构拓扑，直观传递“企业级 MCP 治理中心”的视觉冲击力。
+然而，在真实生产运维与 Agent 协作场景中，存在三大痛点需求：
+1. **Server 粒度缺乏一键热启停控制 (Server Hot Toggle)**：
+   - 当某个下游 MCP Server 出现故障、维护升级或存在安全风险时，运维人员需要能一键将其暂时下线，而无需修改网关配置文件并重启整个网关服务；
+   - 下线后，该 Server 下的所有 Tool 必须立即从 Agent 视角的 `tools/list` 聚合视图中静默剔除，并在执行调用 `tools/call` 时直接拒绝分发。
+2. **租户/Agent 可见性过滤缺乏直观操作界面 (Tool Picker 勾选联动)**：
+   - 现阶段调整 Tool ACL 策略需手动编写参数或执行底层命令，缺乏直观的可视化勾选机制（最小权限原则）；
+   - 用户与运维希望在 Web 控制台上通过直接【勾选/去勾选】某个 Tool，实时动态联动 `RouteManager` 与 `ToolAclPolicy`。未勾选的工具在 Agent 发起 `tools/list` 阶段被静默过滤剔除，Agent 甚至感知不到该工具的存在（防止上下文投毒与无意调用）。
+3. **开源品牌与视觉门面正式统一 (Brand Alignment)**：
+   - 项目品牌正式统一规范对齐为 **`mcp-governance`**（涵盖文档、Web 控制台品牌标识、OpenAPI 契约、README 等，修正过往残留的临时命名）；
+   - 在网关根目录与控制台中呈现高保真科技感暗黑仪表盘，并在开源 README 中规划高质量大盘预览与多媒体展示位。
+4. **技术栈约束 (Zero-Build Vanilla SPA)**：
+   - 必须保持 Java 原生、轻量可移植的极简原则。控制台作为静态资源内置在网关 JAR 包中（`mcp-governance-gateway/src/main/resources/static/`），零额外 Node.js / npm 依赖，浏览器直达 `http://127.0.0.1:18080/`。
 
 ---
 
 ## 架构决策 (Decision)
 
-### 1. 前端技术栈：自包含轻量纯原生单页架构 (Zero-Build Vanilla SPA)
+### 1. 品牌与视觉门面正式统一为 `mcp-governance`
 
-- **物理位置**：
-  - 静态资产统一置于 `mcp-governance-gateway/src/main/resources/static/` 目录下；
-  - 核心入口文件为 `index.html`（内联或同级引用极简样式与无打包 ES 模块 JS，单文件或零依赖多文件静态分发）；
-- **零外部编译依赖 (Zero-Build)**：
-  - 严禁引入 Node.js、pnpm、Vite、npm 等外部打包工具；
-  - 页面采用现代化 HTML5、CSS 原生变量（Dark/Modern 科技主题）以及原生 Vanilla JavaScript (Fetch API, EventSource, DOM API)；
-  - 使用内嵌轻量 SVG 图标与原生 Canvas/SVG 绘制简易趋势图（折线图/柱状图），实现 100% 自包含与离线可用，不引入任何重型外部三方库；
-- **访问入口**：
-  - 当浏览器直接访问网关根路径 `http://127.0.0.1:18080/` 时，Spring WebFlux 默认将静态资源映射至 `index.html`，实现开箱即用的直达体验。
+- **标识统一**：
+  - 控制台标题与 Header 标识统一对齐为：`mcp-governance 控制台` (mcp-governance Gateway Web Console)；
+  - 核心版本对齐当前阶段发布规划（1.0.0 / 0.1.0-SNAPSHOT）；
+  - 控制面 API 契约与 JSON 规范统一标识为 `mcp-governance`；
+- **README 多媒体门面**：
+  - 预留并规范 README 首屏控制台实时大盘 ASCII/高保真预览结构与暗黑流光卡片展示；
+  - 中英双语 README 首屏直达 30 秒 Docker 启动与 Web 控制台访问方式。
 
 ---
 
-### 2. 控制面后端 API 设计与分层隔离
+### 2. 下游 Server 目录、健康大盘与一键热启停架构 (Server Hot Toggle)
 
-控制面 REST API 与 MCP 数据面（JSON-RPC `POST /mcp/v1/rpc`）保持严格分层：
-- **API 统一路由前缀**：`/api/v1`；
-- **核心交互端点契约**：
-  1. `GET /api/v1/overview`：大盘总体摘要。聚合下游 Upstream Server 数量、在线状态、聚合 Tool 数量、累计调用数、成功率、拦截率及平均耗时；
-  2. `GET /api/v1/tools`：全量工具资产发现视图。返回所有聚合后的工具名（含前缀）、所属下游 Server、原始名称、描述、JSON Schema 参数定义、当前 ACL 状态（ALLOWED / DENIED / INHERITED）以及近实时调用量；
-  3. `POST /api/v1/tools/acl`：一键 ACL 策略动态下发。入参包含 `upstreamId`、`toolName`、`action`（`ALLOW` / `DENY` / `RESET`），动态操作路由治理配置中的 `allowedTools` 与 `deniedTools`，实时影响随后的 `tools/list` 发现与 `tools/call` 执行；
-  4. `GET /api/v1/audit/events`：近期脱敏审计记录查询（返回最新 50~100 条脱敏事件快照）；
-  5. `GET /api/v1/audit/stream`：基于 Server-Sent Events (SSE) 的实时流式审计瀑布流，媒体类型为 `text/event-stream`，前端通过原生 `EventSource` 建立长连接，实时渲染调用动态；
-  6. `GET /api/v1/routes`：下游路由详情列表，包含协议（HTTP/SSE/STDIO）、URI、状态与治理模式。
-
----
-
-### 3. 动态 ACL 状态管理与并发安全保证
-
-- **内存动态策略下发**：
-  - 由 `RouteManager` 扩展或委托路由配置动态更新机制，对指定下游路由的 `RouteGovernanceConfig` 进行线程安全修改（采用 `synchronized` 或写时复制结构）；
-  - 当下发 `DENY` 指令时，将目标工具追加至对应下游的 `deniedTools`，同时在 `ToolAggregator.aggregateTools()` 视图中实时剔除，并在 `DefaultGatewayExecutionAdapter` 中实时拦截执行；
-  - 动态策略在服务运行期生效，并保留持久化到外置 JSON/YAML 文件的扩展点。
+- **数据模型扩展 (`RouteDefinition`)**：
+  - 在 `RouteDefinition` 模型中引入 `enabled` 状态字段（布尔类型，默认为 `true`）；
+  - 引入运行时状态枚举/标记：`status`（`UP` / `DOWN` / `STOPPED`）；
+- **动态启停控制机制 (`RouteManager`)**：
+  - `RouteManager` 提供线程安全的 `setRouteEnabled(String routeId, boolean enabled)` 方法；
+  - 当 `enabled = false` 时：
+    1. **`ToolAggregator.aggregateTools()` 联动**：遍历各路由聚合工具时，直接跳过所有 `!route.isEnabled()` 的停用路由，使得下属 Tool 在 Agent 发起 `tools/list` 阶段立即完全隐形下线；
+    2. **`DefaultGatewayExecutionAdapter` 联动**：在数据面执行 `tools/call` 请求匹配到该路由时，若路由处于停用状态，直接抛出 `McpAccessDeniedException` 或返回服务停用错误，拒绝调用分发；
+- **控制面端点**：
+  - `POST /api/v1/routes/status`：
+    - 入参：`{ "routeId": "k8s-service", "enabled": false }`
+    - 出参：`{ "success": true, "routeId": "k8s-service", "enabled": false, "status": "STOPPED", "message": "Server 路由已热停用" }`
+  - `GET /api/v1/routes`：
+    - 返回每个 Server 路由的 `enabled`、`status`、协议与工具统计。
 
 ---
 
-### 4. 控制面安全性基线 (OWASP Compliance)
+### 3. 可视化租户/Agent 可见性过滤 (Tool Picker 勾选联动)
 
-- **严格只读控制与同源防护**：
-  - API 与控制台遵循 OWASP 安全基线，默认仅绑定 `127.0.0.1` 本地回环接口；
-  - CORS 策略继承已有的严格配置，禁止任意第三方 Origin 跨域调用控制面 API；
-- **审计记录脱敏保证**：
-  - 控制台端点仅对外暴露已经过 `SensitiveDataMasker` 打码脱敏的 `McpAuditEvent`，严禁在控制台 API 中返回未经打码的 rawArguments / rawCredentials。
+- **最小权限暴露与静默剔除原则**：
+  - 遵循 OWASP MCP02（权限过度蔓延）防御基线。对于组织内挂载的众多 MCP 工具，默认或按需实行最小权限暴露；
+  - 未勾选激活的工具，在 Agent 发起 `tools/list` 协议握手时**直接静默剔除**，减少 Agent 上下文 Token 消耗并消除幻觉调用风险；
+- **Tool Picker 勾选控制 API (`POST /api/v1/tools/acl`)**：
+  - 扩展原有 API 契约，支持直观的 `enabled` 勾选参数：
+    ```json
+    {
+      "toolName": "k8s_delete_pod",
+      "enabled": false
+    }
+    ```
+  - 后端映射逻辑：
+    - `enabled: true` 等价于 ACL 动作 `ALLOW`（从 `deniedTools` 移出并纳入 `allowedTools`）；
+    - `enabled: false` 等价于 ACL 动作 `DENY`（从 `allowedTools` 移出并纳入 `deniedTools`）；
+    - 兼容原有的 `action`（`ALLOW` / `DENY` / `RESET`）字段，保持向后兼容；
+- **`WebConsoleController` 与 `GET /api/v1/tools` 扩展**：
+  - 返回项中包含：
+    - `enabled`: `boolean`（当上游 Server 启用且自身 ACL 为 `ALLOWED` 时为 `true`，否则为 `false`，供前端 Checkbox 绑定）；
+    - `upstreamEnabled`: `boolean`（标识父级 Server 是否启用）；
+    - `aclStatus`: `ALLOWED` / `DENIED`；
+- **前端交互实现**：
+  - 在 Web 控制台表格/卡片中提供直观的 Switch 开关或 Checkbox 复选框；
+  - 点击即可秒级向后端提交变更并局部重显状态，支持搜索过滤与批量观察。
+
+---
+
+### 4. 实时脱敏审计流水线瀑布流 (SSE + RingBuffer)
+
+- **高并发内存环形缓冲 (`InMemoryAuditRingBuffer`)**：
+  - 预分配固定容量（默认 200 条）并发安全双端队列，自动淘汰最旧事件，内存占用恒定有界；
+  - 集成 `McpAuditPublisher` SPI，在拦截器完成审计打码后自动写入；
+- **Server-Sent Events (SSE) 长连接**：
+  - 端点：`GET /api/v1/audit/stream`，媒体类型 `text/event-stream`；
+  - 采用 Spring WebFlux `Flux<ServerSentEvent<Map<String, Object>>>` 响应式单向广播；
+  - 默认 15 秒保活 Ping 注释包，防止浏览器或反向代理超时断连；
+- **前端瀑布流呈现**：
+  - 原生 `EventSource` 监听，收到新事件时以优雅动效插入顶部，支持暂停/继续与清屏；
+  - 严格展示已脱敏入参（`SensitiveDataMasker` 打码值），防止凭据泄漏。
 
 ---
 
 ## 架构后果 (Consequences)
 
 ### 正向影响 (Positive)
-1. **零学习成本与极速运维**：通过现代化 Web 大盘一眼看清全网 MCP 工具资产、健康度与实时调用轨迹；
-2. **极简构建与容器一致性**：无任何 Node/npm 构建环节，Maven `mvn package` 与 Docker 构建流程 100% 保持纯粹与秒级打包；
-3. **安全闭环与动态阻断**：发现恶意调用或高危工具时，管理员可在 Web 界面秒级一键阻断（ACL Deny），无需重启网关进程。
+1. **运维可控性大幅飞跃**：具备了 Server 级（粗粒度故障隔离）与 Tool Picker 勾选级（细粒度权限收敛）的双层动态控制面；
+2. **零打包与零侵入交付**：控制台纯静态嵌入网关，零 Node.js / npm 依赖，开箱即用；
+3. **品牌标准化**：统一使用 `mcp-governance`，扫清过往命名残留，提升开源影响力与专业度。
 
-### 负向考量与限制 (Trade-offs)
-1. **纯原生前端无组件库支持**：需编写原生 CSS 与 DOM 操作代码，UI 交互需保持紧凑专注，不做过度复杂的企业级中后台逻辑；
-2. **内存事件容量约束**：实时审计 SSE 与近期列表基于内存 RingBuffer 暂存（默认保留最近 200 条），防止高并发时内存无节制膨胀。
+### 限制与权衡 (Trade-offs)
+1. **纯内存策略持久化扩展点**：当前控制面热修改默认生效于运行期内存；生产环境长期持久化需依赖外置 `mcp-routes.json` 回写扩展。
+2. **单机 SSE 连接池容量**：SSE 适合管理端点调试，大并发集群管理建议配合专用日志平台（如 ELK / Loki）。
 
 ---
 
 ## 替代方案评估 (Alternatives Considered)
 
-1. **方案 A：采用 React / Vue 独立前端工程，并通过 Maven 前端插件打包**：
-   - *缺陷*：引入 Node/npm 庞大环境依赖，CI 耗时显著增加，脱离项目“Java 原生、轻量可嵌入”的初衷；放弃该方案。
-2. **方案 B：仅通过 Actuator 端点暴露，不提供内嵌 Web UI**：
-   - *缺陷*：用户体验差，缺乏交互式一键 ACL 阻断能力，不符合开源项目直观展示门面的需求；放弃该方案。
+1. **方案 A：引入微前端或 React 构建独立管理后台**：
+   - 严重破坏《AGENTS.md》中规定的轻量、Java 原生与无额外编译流水线原则，放弃。
+2. **方案 B：仅通过配置文件修改并热重载实现启停**：
+   - 用户需要登录服务器修改 JSON/YAML 文件，无法满足管理员浏览器一键操作的直观敏捷诉求，放弃。

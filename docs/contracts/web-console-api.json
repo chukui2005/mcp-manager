@@ -2,15 +2,15 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "openapi": "3.0.3",
   "info": {
-    "title": "MCP Governance Gateway Web Console API",
-    "description": "轻量级控制面 REST 与 SSE 实时接口规范，用于驱动自包含 Web Admin Dashboard。",
-    "version": "0.1.0"
+    "title": "mcp-governance Gateway Web Console API",
+    "description": "轻量级控制面 REST 与 SSE 实时接口规范，用于驱动自包含 Web Admin Console，提供 Server 热启停、Tool Picker 勾选治理及实时脱敏审计流。",
+    "version": "1.0.0"
   },
   "paths": {
     "/api/v1/overview": {
       "get": {
         "summary": "获取网关全局监控大盘数据",
-        "description": "聚合网关运行时状态、各下游服务数、聚合工具数及吞吐率统计",
+        "description": "聚合网关运行时状态、各下游服务数（总数/在线数/停用数）、聚合工具数及吞吐率统计",
         "responses": {
           "200": {
             "description": "成功返回大盘概览",
@@ -22,19 +22,22 @@
                   "properties": {
                     "gateway": {
                       "type": "object",
-                      "required": ["status", "version", "uptimeMs"],
+                      "required": ["status", "version", "uptimeMs", "brand"],
                       "properties": {
                         "status": { "type": "string", "example": "UP" },
-                        "version": { "type": "string", "example": "0.1.0-SNAPSHOT" },
+                        "version": { "type": "string", "example": "1.0.0" },
+                        "brand": { "type": "string", "example": "mcp-governance" },
                         "uptimeMs": { "type": "integer", "example": 86400000 }
                       }
                     },
                     "counts": {
                       "type": "object",
-                      "required": ["upstreamCount", "toolCount"],
+                      "required": ["upstreamCount", "activeUpstreamCount", "toolCount", "activeToolCount"],
                       "properties": {
                         "upstreamCount": { "type": "integer", "example": 3 },
-                        "toolCount": { "type": "integer", "example": 25 }
+                        "activeUpstreamCount": { "type": "integer", "example": 2 },
+                        "toolCount": { "type": "integer", "example": 25 },
+                        "activeToolCount": { "type": "integer", "example": 18 }
                       }
                     },
                     "summary": {
@@ -58,9 +61,87 @@
         }
       }
     },
+    "/api/v1/routes": {
+      "get": {
+        "summary": "获取已注册的 MCP Server 路由拓扑与运行状态",
+        "description": "返回所有注册的下游 MCP Server 清单，包含协议类型、URI、前缀、在线健康状态及启停状态 (enabled)",
+        "responses": {
+          "200": {
+            "description": "成功返回路由列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "protocol", "prefix", "enabled", "status"],
+                    "properties": {
+                      "id": { "type": "string", "example": "k8s-service" },
+                      "protocol": { "type": "string", "enum": ["HTTP", "SSE", "STDIO"], "example": "HTTP" },
+                      "prefix": { "type": "string", "example": "k8s_" },
+                      "uri": { "type": "string", "example": "http://127.0.0.1:9001/mcp" },
+                      "stdioCommand": { "type": "string", "example": "docker run -i ..." },
+                      "enabled": { "type": "boolean", "example": true },
+                      "status": { "type": "string", "enum": ["UP", "DOWN", "STOPPED"], "example": "UP" },
+                      "aclMode": { "type": "string", "enum": ["WHITELIST", "BLACKLIST"], "example": "WHITELIST" },
+                      "allowedToolsCount": { "type": "integer", "example": 5 },
+                      "deniedToolsCount": { "type": "integer", "example": 1 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/routes/status": {
+      "post": {
+        "summary": "一键热启停指定 MCP Server 路由",
+        "description": "热启停下游服务路由。若停止该 Server，其所属所有 Tool 立即从 tools/list 聚合视图下线并不再参与路由分发与调用",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["routeId", "enabled"],
+                "properties": {
+                  "routeId": { "type": "string", "example": "k8s-service" },
+                  "enabled": { "type": "boolean", "example": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "路由状态更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "routeId", "enabled", "status", "message"],
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "routeId": { "type": "string", "example": "k8s-service" },
+                    "enabled": { "type": "boolean", "example": false },
+                    "status": { "type": "string", "example": "STOPPED" },
+                    "message": { "type": "string", "example": "Server 路由已热停用，下属工具已全部下线" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "无效请求参数" },
+          "404": { "description": "未找到匹配的路由 ID" }
+        }
+      }
+    },
     "/api/v1/tools": {
       "get": {
-        "summary": "查询全量聚合工具清单与实时策略状态",
+        "summary": "查询全量工具资产发现清单与 Tool Picker 勾选状态",
+        "description": "返回全量已注册工具清单，含所属下游 Server 状态、ACL 授权状态、Tool Picker 勾选激活状态 (enabled)",
         "responses": {
           "200": {
             "description": "成功返回工具列表",
@@ -70,13 +151,15 @@
                   "type": "array",
                   "items": {
                     "type": "object",
-                    "required": ["name", "upstreamId", "aclStatus"],
+                    "required": ["name", "rawName", "upstreamId", "upstreamEnabled", "aclStatus", "enabled"],
                     "properties": {
-                      "name": { "type": "string", "example": "demo_read_file" },
-                      "rawName": { "type": "string", "example": "read_file" },
-                      "upstreamId": { "type": "string", "example": "demo-service" },
-                      "description": { "type": "string", "example": "读取指定沙箱文件的内容" },
+                      "name": { "type": "string", "example": "k8s_get_pods" },
+                      "rawName": { "type": "string", "example": "get_pods" },
+                      "upstreamId": { "type": "string", "example": "k8s-service" },
+                      "upstreamEnabled": { "type": "boolean", "example": true },
+                      "description": { "type": "string", "example": "获取指定命名空间下的 Pod 列表" },
                       "aclStatus": { "type": "string", "enum": ["ALLOWED", "DENIED"], "example": "ALLOWED" },
+                      "enabled": { "type": "boolean", "description": "Tool Picker 勾选状态（上游在线且 ACL 为 ALLOWED 时为 true）", "example": true },
                       "inputSchema": { "type": "object" }
                     }
                   }
@@ -89,18 +172,19 @@
     },
     "/api/v1/tools/acl": {
       "post": {
-        "summary": "动态下发工具 ACL 访问控制策略",
-        "description": "针对特定工具一键执行放行 (ALLOW) 或阻断 (DENY)，实时同步更新拦截流水线",
+        "summary": "Tool Picker 勾选动态控制与 ACL 策略切换",
+        "description": "针对特定工具通过勾选框 (ENABLE/DISABLE) 或动作 (ALLOW/DENY/RESET) 自由切换，未开启工具在 tools/list 阶段静默剔除",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["toolName", "action"],
+                "required": ["toolName"],
                 "properties": {
-                  "toolName": { "type": "string", "example": "demo_read_file" },
-                  "action": { "type": "string", "enum": ["ALLOW", "DENY", "RESET"], "example": "DENY" }
+                  "toolName": { "type": "string", "example": "k8s_get_pods" },
+                  "enabled": { "type": "boolean", "description": "Tool Picker 勾选框状态（true 为勾选放行，false 为去勾选禁用）", "example": true },
+                  "action": { "type": "string", "enum": ["ALLOW", "DENY", "RESET"], "description": "兼容细粒度 ACL 动作", "example": "ALLOW" }
                 }
               }
             }
@@ -113,12 +197,13 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "required": ["success", "toolName", "currentStatus"],
+                  "required": ["success", "toolName", "currentStatus", "enabled"],
                   "properties": {
                     "success": { "type": "boolean", "example": true },
-                    "toolName": { "type": "string", "example": "demo_read_file" },
-                    "currentStatus": { "type": "string", "example": "DENIED" },
-                    "message": { "type": "string", "example": "工具已动态阻断" }
+                    "toolName": { "type": "string", "example": "k8s_get_pods" },
+                    "currentStatus": { "type": "string", "example": "ALLOWED" },
+                    "enabled": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "工具已启用并纳入 tools/list 暴露" }
                   }
                 }
               }
@@ -151,8 +236,8 @@
                     "required": ["eventId", "toolName", "callerRole", "status", "timestamp"],
                     "properties": {
                       "eventId": { "type": "string", "example": "evt-12345" },
-                      "toolName": { "type": "string", "example": "demo_execute_query" },
-                      "callerRole": { "type": "string", "example": "mcp-gateway-agent" },
+                      "toolName": { "type": "string", "example": "k8s_delete_pod" },
+                      "callerRole": { "type": "string", "example": "mcp-agent" },
                       "status": { "type": "string", "example": "SUCCESS" },
                       "maskedArguments": { "type": "object" },
                       "executionTimeMs": { "type": "integer", "example": 15 },
@@ -169,7 +254,7 @@
     "/api/v1/audit/stream": {
       "get": {
         "summary": "基于 SSE 的实时审计流长连接",
-        "description": "建立 HTTP text/event-stream 连接，持续接收网关运行时脱敏审计事件",
+        "description": "建立 HTTP text/event-stream 连接，持续接收网关运行时脱敏审计事件瀑布流",
         "responses": {
           "200": {
             "description": "SSE 流式连接建立成功",
@@ -177,7 +262,7 @@
               "text/event-stream": {
                 "schema": {
                   "type": "string",
-                  "example": "data: {\"eventId\":\"evt-123\",\"toolName\":\"demo_read\",\"status\":\"SUCCESS\"}\n\n"
+                  "example": "data: {\"eventId\":\"evt-123\",\"toolName\":\"k8s_get_pods\",\"status\":\"SUCCESS\"}\n\n"
                 }
               }
             }

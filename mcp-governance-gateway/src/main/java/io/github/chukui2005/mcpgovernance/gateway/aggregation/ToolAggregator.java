@@ -96,12 +96,18 @@ public class ToolAggregator {
 
     /**
      * 拉取单个下游路由的工具并执行前缀注入与 ACL 过滤。
+     * 若路由处于停用状态 (enabled == false)，直接跳过并不拉取工具。
      *
      * @param route 下游路由定义
      * @return 该路由下可见且带有命名空间的工具列表
      */
     private Mono<List<GovernedTool>> fetchAndProcessRouteTools(RouteDefinition route) {
         String routeId = route.getId();
+        if (!route.isEnabled()) {
+            log.debug("下游路由 [{}] 当前处于停用状态，跳过工具聚合", routeId);
+            return Mono.just(Collections.emptyList());
+        }
+
         String prefix = route.getPrefix();
         ToolAclPolicy aclPolicy = buildToolAclPolicy(route.getGovernance());
 

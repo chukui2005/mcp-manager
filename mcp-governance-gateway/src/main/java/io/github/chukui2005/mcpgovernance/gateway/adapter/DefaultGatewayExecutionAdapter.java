@@ -1,5 +1,6 @@
 package io.github.chukui2005.mcpgovernance.gateway.adapter;
 
+import io.github.chukui2005.mcpgov.core.runtime.McpAccessDeniedException;
 import io.github.chukui2005.mcpgov.core.runtime.McpInterceptor;
 import io.github.chukui2005.mcpgov.core.runtime.McpInterceptorChain;
 import io.github.chukui2005.mcpgov.core.runtime.McpInvocationContext;
@@ -152,7 +153,12 @@ public class DefaultGatewayExecutionAdapter implements GatewayExecutionAdapter {
             if (routeManager != null) {
                 Optional<RouteDefinition> routeOpt = routeManager.getRouteById(serverId);
                 if (routeOpt.isPresent()) {
-                    RouteGovernanceConfig gov = routeOpt.get().getGovernance();
+                    RouteDefinition route = routeOpt.get();
+                    if (!route.isEnabled()) {
+                        log.warn("下游 Server [{}] 已被停用，拒绝调用分发", serverId);
+                        return Mono.error(new McpAccessDeniedException("下游 Server [" + serverId + "] 当前处于停用状态，拒绝调用"));
+                    }
+                    RouteGovernanceConfig gov = route.getGovernance();
                     if (gov != null && (gov.getAclMode() != null || !gov.getAllowedTools().isEmpty() || !gov.getDeniedTools().isEmpty())) {
                         AclMode aclMode = "BLACKLIST".equalsIgnoreCase(gov.getAclMode()) ? AclMode.BLACKLIST : AclMode.WHITELIST;
                         ToolAclPolicy aclPolicy = new ToolAclPolicy(true, aclMode, gov.getAllowedTools(), gov.getDeniedTools());

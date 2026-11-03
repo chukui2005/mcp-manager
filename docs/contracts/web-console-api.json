@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "openapi": "3.0.3",
+  "info": {
+    "title": "MCP Governance Gateway Web Console API",
+    "description": "轻量级控制面 REST 与 SSE 实时接口规范，用于驱动自包含 Web Admin Dashboard。",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/overview": {
+      "get": {
+        "summary": "获取网关全局监控大盘数据",
+        "description": "聚合网关运行时状态、各下游服务数、聚合工具数及吞吐率统计",
+        "responses": {
+          "200": {
+            "description": "成功返回大盘概览",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["gateway", "counts", "summary"],
+                  "properties": {
+                    "gateway": {
+                      "type": "object",
+                      "required": ["status", "version", "uptimeMs"],
+                      "properties": {
+                        "status": { "type": "string", "example": "UP" },
+                        "version": { "type": "string", "example": "0.1.0-SNAPSHOT" },
+                        "uptimeMs": { "type": "integer", "example": 86400000 }
+                      }
+                    },
+                    "counts": {
+                      "type": "object",
+                      "required": ["upstreamCount", "toolCount"],
+                      "properties": {
+                        "upstreamCount": { "type": "integer", "example": 3 },
+                        "toolCount": { "type": "integer", "example": 25 }
+                      }
+                    },
+                    "summary": {
+                      "type": "object",
+                      "required": ["totalInvocations", "totalSuccess", "totalAccessDenied", "totalValidationFailed", "totalError", "successRate", "deniedRate"],
+                      "properties": {
+                        "totalInvocations": { "type": "integer", "example": 1250 },
+                        "totalSuccess": { "type": "integer", "example": 1200 },
+                        "totalAccessDenied": { "type": "integer", "example": 35 },
+                        "totalValidationFailed": { "type": "integer", "example": 10 },
+                        "totalError": { "type": "integer", "example": 5 },
+                        "successRate": { "type": "number", "example": 0.96 },
+                        "deniedRate": { "type": "number", "example": 0.028 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools": {
+      "get": {
+        "summary": "查询全量聚合工具清单与实时策略状态",
+        "responses": {
+          "200": {
+            "description": "成功返回工具列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["name", "upstreamId", "aclStatus"],
+                    "properties": {
+                      "name": { "type": "string", "example": "demo_read_file" },
+                      "rawName": { "type": "string", "example": "read_file" },
+                      "upstreamId": { "type": "string", "example": "demo-service" },
+                      "description": { "type": "string", "example": "读取指定沙箱文件的内容" },
+                      "aclStatus": { "type": "string", "enum": ["ALLOWED", "DENIED"], "example": "ALLOWED" },
+                      "inputSchema": { "type": "object" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tools/acl": {
+      "post": {
+        "summary": "动态下发工具 ACL 访问控制策略",
+        "description": "针对特定工具一键执行放行 (ALLOW) 或阻断 (DENY)，实时同步更新拦截流水线",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["toolName", "action"],
+                "properties": {
+                  "toolName": { "type": "string", "example": "demo_read_file" },
+                  "action": { "type": "string", "enum": ["ALLOW", "DENY", "RESET"], "example": "DENY" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "策略更新成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["success", "toolName", "currentStatus"],
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "toolName": { "type": "string", "example": "demo_read_file" },
+                    "currentStatus": { "type": "string", "example": "DENIED" },
+                    "message": { "type": "string", "example": "工具已动态阻断" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "无效请求参数" },
+          "404": { "description": "未找到匹配的工具路由" }
+        }
+      }
+    },
+    "/api/v1/audit/events": {
+      "get": {
+        "summary": "获取近期脱敏审计记录快照",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "返回近期脱敏事件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["eventId", "toolName", "callerRole", "status", "timestamp"],
+                    "properties": {
+                      "eventId": { "type": "string", "example": "evt-12345" },
+                      "toolName": { "type": "string", "example": "demo_execute_query" },
+                      "callerRole": { "type": "string", "example": "mcp-gateway-agent" },
+                      "status": { "type": "string", "example": "SUCCESS" },
+                      "maskedArguments": { "type": "object" },
+                      "executionTimeMs": { "type": "integer", "example": 15 },
+                      "timestamp": { "type": "string", "format": "date-time" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audit/stream": {
+      "get": {
+        "summary": "基于 SSE 的实时审计流长连接",
+        "description": "建立 HTTP text/event-stream 连接，持续接收网关运行时脱敏审计事件",
+        "responses": {
+          "200": {
+            "description": "SSE 流式连接建立成功",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string",
+                  "example": "data: {\"eventId\":\"evt-123\",\"toolName\":\"demo_read\",\"status\":\"SUCCESS\"}\n\n"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -137,9 +137,9 @@ mcp:
           regex-pattern: "^/safe/.*"  # Anti-path traversal regex
 ```
 
-### Option 3: Standalone Control Plane Gateway
+### Option 3: Standalone Control Plane Gateway (with Built-in Web Admin Dashboard)
 
-Aggregate distributed upstreams (HTTP, SSE, STDIO) into a unified secure gateway endpoint:
+Aggregate distributed upstreams (HTTP, SSE, STDIO) into a unified secure gateway endpoint, with an out-of-the-box self-contained Web Console:
 
 1. Define `gateway-routes.json`:
 ```json
@@ -165,7 +165,9 @@ One-click start with configuration volume mounting:
 docker-compose up -d
 ```
 
-3. Connect your AI Agents (Cursor, Claude Desktop, LangChain) directly to `http://127.0.0.1:8080/mcp/v1/rpc` (or `http://127.0.0.1:18080/mcp/v1/rpc` via Docker Compose).
+3. **Access Dashboard & Connect Agents**:
+- **Web Admin Dashboard**: Open `http://127.0.0.1:18080/` in your browser. Real-time overview of upstream servers, aggregated tools, 1-click ACL dynamic blocking/allowing, and live SSE masked audit stream;
+- **AI Agents Endpoint**: Connect your AI Agents (Cursor, Claude Desktop, LangChain) directly to `http://127.0.0.1:18080/mcp/v1/rpc`.
 
 ### Option 4: GitHub Action in CI (5 Lines of YAML)
 

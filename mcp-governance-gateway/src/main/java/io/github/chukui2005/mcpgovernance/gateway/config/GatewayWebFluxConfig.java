@@ -70,4 +70,28 @@ public class GatewayWebFluxConfig {
     public io.github.chukui2005.mcpgov.core.runtime.metrics.McpMetricsCollector mcpMetricsCollector() {
         return new io.github.chukui2005.mcpgov.core.runtime.metrics.InMemoryMcpMetricsCollector();
     }
+
+    /**
+     * 注册网关默认的内存审计事件环形缓冲器与 SSE 广播器 Bean。
+     *
+     * @return InMemoryAuditRingBuffer 实例
+     */
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+    public io.github.chukui2005.mcpgovernance.gateway.audit.InMemoryAuditRingBuffer inMemoryAuditRingBuffer() {
+        return new io.github.chukui2005.mcpgovernance.gateway.audit.InMemoryAuditRingBuffer();
+    }
+
+    /**
+     * 注册网关审计发布器 Bean，委托 InMemoryAuditRingBuffer 作为核心发布实现。
+     *
+     * @param ringBuffer 环形缓冲器
+     * @return McpAuditPublisher 实例
+     */
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+    public io.github.chukui2005.mcpgov.core.runtime.audit.McpAuditPublisher mcpAuditPublisher(
+            io.github.chukui2005.mcpgovernance.gateway.audit.InMemoryAuditRingBuffer ringBuffer) {
+        return ringBuffer;
+    }
 }

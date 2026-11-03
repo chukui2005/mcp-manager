@@ -133,4 +133,28 @@ class ToolAggregatorTest {
         assertThat(map.get("description")).isEqualTo("Health check");
         assertThat(map.get("inputSchema")).isInstanceOf(Map.class);
     }
+
+    @Test
+    @DisplayName("测试下游路由停用时工具自动从聚合列表中剔除")
+    void testDisabledRouteToolsExcluded() {
+        RouteDefinition r1 = new RouteDefinition("online-srv", UpstreamProtocol.HTTP, "online_", "http://online");
+        RouteDefinition r2 = new RouteDefinition("stopped-srv", UpstreamProtocol.HTTP, "stopped_", "http://stopped");
+        r2.setEnabled(false); // 停用
+
+        routeManager.registerRoute(r1);
+        routeManager.registerRoute(r2);
+
+        GovernedTool t1 = GovernedTool.of("tool1", "desc", Map.of("type", "object"));
+        GovernedTool t2 = GovernedTool.of("tool2", "desc", Map.of("type", "object"));
+
+        upstreamToolProvider.registerTools("online-srv", List.of(t1));
+        upstreamToolProvider.registerTools("stopped-srv", List.of(t2));
+
+        StepVerifier.create(aggregator.aggregateTools())
+                .assertNext(tools -> {
+                    assertThat(tools).hasSize(1);
+                    assertThat(tools.get(0).name()).isEqualTo("online_tool1");
+                })
+                .verifyComplete();
+    }
 }

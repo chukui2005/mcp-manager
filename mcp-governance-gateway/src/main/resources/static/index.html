@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MCP Governance 控制台 - Web Admin Dashboard</title>
+  <title>mcp-governance 控制台 - Web Admin Dashboard</title>
   <style>
     :root {
       --bg-base: #0b0f19;
@@ -281,6 +281,10 @@
       background-color: rgba(255, 255, 255, 0.02);
     }
 
+    tr.row-disabled {
+      opacity: 0.5;
+    }
+
     .tool-name-cell {
       display: flex;
       flex-direction: column;
@@ -326,6 +330,12 @@
       border: 1px solid rgba(245, 158, 11, 0.4);
     }
 
+    .badge-muted {
+      background-color: rgba(107, 114, 128, 0.2);
+      color: #9ca3af;
+      border: 1px solid rgba(107, 114, 128, 0.4);
+    }
+
     .btn {
       border: none;
       border-radius: 0.375rem;
@@ -336,12 +346,17 @@
       transition: all 0.2s;
     }
 
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     .btn-danger {
       background-color: var(--danger);
       color: #fff;
     }
 
-    .btn-danger:hover {
+    .btn-danger:hover:not(:disabled) {
       background-color: var(--danger-hover);
     }
 
@@ -350,7 +365,7 @@
       color: #fff;
     }
 
-    .btn-success:hover {
+    .btn-success:hover:not(:disabled) {
       background-color: #059669;
     }
 
@@ -360,8 +375,20 @@
       color: var(--text-main);
     }
 
-    .btn-outline:hover {
+    .btn-outline:hover:not(:disabled) {
       background-color: var(--border);
+    }
+
+    /* Tool Picker 复选框样式 */
+    .tool-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: var(--primary);
+    }
+
+    .tool-checkbox:disabled {
+      cursor: not-allowed;
     }
 
     /* 审计日志瀑布流 */
@@ -448,6 +475,12 @@
       display: flex;
       flex-direction: column;
       gap: 0.75rem;
+      transition: border-color 0.2s;
+    }
+
+    .route-card.route-stopped {
+      border-color: rgba(239, 68, 68, 0.3);
+      background-color: rgba(31, 41, 55, 0.6);
     }
 
     .route-card-title {
@@ -473,6 +506,14 @@
     .route-prop-val {
       font-family: monospace;
       color: #93c5fd;
+    }
+
+    .route-card-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 0.5rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
     }
 
     /* 浮动提示 Toast */
@@ -508,7 +549,7 @@
       <svg class="brand-logo" viewBox="0 0 24 24">
         <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
       </svg>
-      <div class="brand-title">MCP Governance Console</div>
+      <div class="brand-title">mcp-governance</div>
       <div class="brand-badge">Gateway v0.3.0</div>
     </div>
     <div class="header-status">
@@ -525,14 +566,14 @@
     <!-- 全局概览大盘 -->
     <section class="overview-grid">
       <div class="metric-card">
-        <span class="metric-label">下游 MCP 服务数</span>
+        <span class="metric-label">下游 MCP 服务数 (在线/总计)</span>
         <span class="metric-value" id="val-upstream-count">-</span>
-        <span class="metric-sub">在线 HTTP / SSE / STDIO 路由</span>
+        <span class="metric-sub" id="val-upstream-sub">在线 HTTP / SSE / STDIO 路由</span>
       </div>
       <div class="metric-card">
-        <span class="metric-label">聚合工具总资产</span>
+        <span class="metric-label">暴露工具资产 (激活/总计)</span>
         <span class="metric-value" id="val-tool-count">-</span>
-        <span class="metric-sub">已注入前缀与命名空间隔离</span>
+        <span class="metric-sub" id="val-tool-sub">Tool Picker 勾选与命名空间隔离</span>
       </div>
       <div class="metric-card">
         <span class="metric-label">累计调用吞吐量</span>
@@ -548,38 +589,50 @@
 
     <!-- 选项卡导航 -->
     <div class="tab-bar">
-      <button class="tab-btn active" onclick="switchTab('tab-tools')">工具资产与策略中心</button>
+      <button class="tab-btn active" onclick="switchTab('tab-tools')">工具资产与治理 (Tool Picker)</button>
+      <button class="tab-btn" onclick="switchTab('tab-routes')">下游服务与路由拓扑 (热启停)</button>
       <button class="tab-btn" onclick="switchTab('tab-audit')">实时安全审计流水 (SSE)</button>
-      <button class="tab-btn" onclick="switchTab('tab-routes')">下游路由拓扑</button>
     </div>
 
-    <!-- 选项卡 1: 工具资产与策略中心 -->
+    <!-- 选项卡 1: 工具资产与治理 (Tool Picker) -->
     <div id="tab-tools" class="tab-pane active">
       <div class="section-header">
-        <h2 class="section-title">MCP 聚合工具列表</h2>
+        <h2 class="section-title">MCP 聚合工具列表与 Tool Picker 勾选治理</h2>
         <input type="text" id="tool-search" class="search-input" placeholder="按工具名/服务搜索..." oninput="filterTools()">
       </div>
       <div class="table-container">
         <table>
           <thead>
             <tr>
+              <th style="width: 70px; text-align: center;">勾选启用</th>
               <th>聚合名称 (Namespace)</th>
               <th>所属下游服务</th>
               <th>描述与参数</th>
               <th>ACL 状态</th>
-              <th>策略控制</th>
+              <th>操作控制</th>
             </tr>
           </thead>
           <tbody id="tools-table-body">
             <tr>
-              <td colspan="5" style="text-align: center; color: var(--text-muted);">正在加载工具资产...</td>
+              <td colspan="6" style="text-align: center; color: var(--text-muted);">正在加载工具资产...</td>
             </tr>
           </tbody>
         </table>
       </div>
     </div>
 
-    <!-- 选项卡 2: 实时安全审计流水 -->
+    <!-- 选项卡 2: 下游路由拓扑 (热启停) -->
+    <div id="tab-routes" class="tab-pane">
+      <div class="section-header">
+        <h2 class="section-title">已配置下游服务拓扑与热启停管理</h2>
+        <button class="btn btn-outline" onclick="loadRoutes()">刷新路由</button>
+      </div>
+      <div class="routes-grid" id="routes-grid-box">
+        <div style="color: var(--text-muted);">正在加载下游路由...</div>
+      </div>
+    </div>
+
+    <!-- 选项卡 3: 实时安全审计流水 -->
     <div id="tab-audit" class="tab-pane">
       <div class="section-header">
         <h2 class="section-title">实时脱敏审计流 (SSE Stream)</h2>
@@ -590,17 +643,6 @@
       </div>
       <div class="audit-stream-container" id="audit-stream-box">
         <div style="color: var(--text-muted); text-align: center; margin-top: 2rem;">正在监听网关调用事件流...</div>
-      </div>
-    </div>
-
-    <!-- 选项卡 3: 下游路由拓扑 -->
-    <div id="tab-routes" class="tab-pane">
-      <div class="section-header">
-        <h2 class="section-title">已配置下游服务定义</h2>
-        <button class="btn btn-outline" onclick="loadRoutes()">刷新路由</button>
-      </div>
-      <div class="routes-grid" id="routes-grid-box">
-        <div style="color: var(--text-muted);">正在加载下游路由...</div>
       </div>
     </div>
   </main>
@@ -650,8 +692,19 @@
         const data = await res.json();
 
         document.getElementById('gateway-uptime').textContent = '运行时长: ' + formatUptime(data.gateway.uptimeMs);
-        document.getElementById('val-upstream-count').textContent = data.counts.upstreamCount;
-        document.getElementById('val-tool-count').textContent = data.counts.toolCount;
+        
+        // 下游服务在线与总数
+        const activeUpstreams = data.counts.activeUpstreamCount !== undefined ? data.counts.activeUpstreamCount : data.counts.upstreamCount;
+        const totalUpstreams = data.counts.upstreamCount;
+        document.getElementById('val-upstream-count').textContent = `${activeUpstreams} / ${totalUpstreams}`;
+        document.getElementById('val-upstream-sub').textContent = `在线 ${activeUpstreams} 个，停用 ${totalUpstreams - activeUpstreams} 个`;
+
+        // 工具暴露激活数与总数
+        const activeTools = data.counts.activeToolCount !== undefined ? data.counts.activeToolCount : data.counts.toolCount;
+        const totalTools = data.counts.toolCount;
+        document.getElementById('val-tool-count').textContent = `${activeTools} / ${totalTools}`;
+        document.getElementById('val-tool-sub').textContent = `已激活暴露 ${activeTools} 个，剔除/停用 ${totalTools - activeTools} 个`;
+
         document.getElementById('val-total-invocations').textContent = data.summary.totalInvocations;
         document.getElementById('val-blocked-count').textContent = (data.summary.totalAccessDenied + data.summary.totalValidationFailed);
 
@@ -680,29 +733,51 @@
     function renderTools(list) {
       const tbody = document.getElementById('tools-table-body');
       if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">暂无可用工具</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">暂无可用工具</td></tr>';
         return;
       }
 
       tbody.innerHTML = list.map(t => {
+        const isUpstreamOnline = t.upstreamEnabled !== false;
+        const isToolEnabled = t.enabled === true;
         const isAllowed = t.aclStatus === 'ALLOWED';
-        const statusBadge = isAllowed 
-          ? '<span class="badge badge-success">放行 ALLOWED</span>' 
-          : '<span class="badge badge-danger">阻断 DENIED</span>';
 
-        const actionBtn = isAllowed
-          ? `<button class="btn btn-danger" onclick="toggleToolAcl('${t.name}', 'DENY')">一键阻断</button>`
-          : `<button class="btn btn-success" onclick="toggleToolAcl('${t.name}', 'ALLOW')">一键放行</button>`;
+        let statusBadge;
+        if (!isUpstreamOnline) {
+          statusBadge = '<span class="badge badge-muted">服务已停用</span>';
+        } else if (isAllowed) {
+          statusBadge = '<span class="badge badge-success">放行 ALLOWED</span>';
+        } else {
+          statusBadge = '<span class="badge badge-danger">阻断 DENIED</span>';
+        }
+
+        const checkboxDisabled = !isUpstreamOnline ? 'disabled' : '';
+        const checkboxChecked = isToolEnabled ? 'checked' : '';
+        const rowClass = !isUpstreamOnline ? 'row-disabled' : (!isAllowed ? 'row-blocked' : '');
+
+        const actionBtn = !isUpstreamOnline 
+          ? '<span style="font-size: 0.75rem; color: var(--text-muted);">不可操作</span>'
+          : (isAllowed
+              ? `<button class="btn btn-danger" onclick="toggleToolPicker('${t.name}', false)">一键禁用</button>`
+              : `<button class="btn btn-success" onclick="toggleToolPicker('${t.name}', true)">一键启用</button>`);
 
         return `
-          <tr>
+          <tr class="${rowClass}">
+            <td style="text-align: center;">
+              <input type="checkbox" class="tool-checkbox" ${checkboxChecked} ${checkboxDisabled}
+                     title="${!isUpstreamOnline ? '上游 Server 已停用' : (isToolEnabled ? '取消勾选将从 tools/list 中静默剔除' : '勾选将在 tools/list 中暴露')}"
+                     onchange="onToolCheckboxChange('${t.name}', this.checked)">
+            </td>
             <td>
               <div class="tool-name-cell">
                 <span class="tool-name">${t.name}</span>
                 <span class="tool-raw">下游名称: ${t.rawName}</span>
               </div>
             </td>
-            <td><span class="badge badge-warning">${t.upstreamId}</span></td>
+            <td>
+              <span class="badge badge-warning">${t.upstreamId}</span>
+              ${!isUpstreamOnline ? '<span class="badge badge-danger" style="margin-left: 0.25rem;">STOPPED</span>' : ''}
+            </td>
             <td>
               <div style="max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 ${t.description || '<span style="color: var(--text-muted);">(无描述)</span>'}
@@ -726,24 +801,31 @@
       renderTools(filtered);
     }
 
-    // 动态下发 ACL 策略
-    async function toggleToolAcl(toolName, action) {
+    // Tool Picker Checkbox 改变事件
+    async function onToolCheckboxChange(toolName, enabled) {
+      await toggleToolPicker(toolName, enabled);
+    }
+
+    // Tool Picker 启停下发
+    async function toggleToolPicker(toolName, enabled) {
       try {
         const res = await fetch('/api/v1/tools/acl', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ toolName, action })
+          body: JSON.stringify({ toolName, enabled })
         });
         const data = await res.json();
         if (data.success) {
-          showToast(`工具 [${toolName}] ACL 策略更新成功: ${data.currentStatus}`);
+          showToast(`工具 [${toolName}] ${enabled ? '已启用暴露' : '已禁用剔除'}`);
           await loadTools();
           await loadOverview();
         } else {
           showToast(`更新失败: ${data.message || '未知错误'}`);
+          await loadTools();
         }
       } catch (e) {
         showToast('策略下发网络异常: ' + e.message);
+        await loadTools();
       }
     }
 
@@ -822,7 +904,7 @@
       document.getElementById('audit-stream-box').innerHTML = '<div style="color: var(--text-muted); text-align: center; margin-top: 2rem;">屏显已清空，正在接收新事件...</div>';
     }
 
-    // 加载路由拓扑
+    // 加载路由拓扑并支持热启停
     async function loadRoutes() {
       try {
         const res = await fetch('/api/v1/routes');
@@ -835,32 +917,73 @@
           return;
         }
 
-        box.innerHTML = routes.map(r => `
-          <div class="route-card">
-            <div class="route-card-title">
-              <span>${r.id}</span>
-              <span class="badge badge-warning">${r.protocol}</span>
+        box.innerHTML = routes.map(r => {
+          const isEnabled = r.enabled !== false;
+          const statusTag = isEnabled
+            ? '<span class="badge badge-success">UP 在线</span>'
+            : '<span class="badge badge-danger">STOPPED 停用</span>';
+
+          const cardClass = isEnabled ? 'route-card' : 'route-card route-stopped';
+
+          const actionBtn = isEnabled
+            ? `<button class="btn btn-danger" onclick="toggleRouteStatus('${r.id}', false)">一键停用 Server</button>`
+            : `<button class="btn btn-success" onclick="toggleRouteStatus('${r.id}', true)">一键启用 Server</button>`;
+
+          return `
+            <div class="${cardClass}">
+              <div class="route-card-title">
+                <span>${r.id}</span>
+                <div>
+                  <span class="badge badge-warning" style="margin-right: 0.25rem;">${r.protocol}</span>
+                  ${statusTag}
+                </div>
+              </div>
+              <div class="route-prop">
+                <span class="route-prop-label">命名空间前缀</span>
+                <span class="route-prop-val">${r.prefix}</span>
+              </div>
+              <div class="route-prop">
+                <span class="route-prop-label">上游目标 URI / 指令</span>
+                <span class="route-prop-val">${r.uri || r.stdioCommand || '-'}</span>
+              </div>
+              <div class="route-prop">
+                <span class="route-prop-label">默认 ACL 治理模式</span>
+                <span class="route-prop-val">${r.aclMode || 'INHERIT'}</span>
+              </div>
+              <div class="route-prop">
+                <span class="route-prop-label">策略规则计数</span>
+                <span class="route-prop-val">允许: ${r.allowedToolsCount || 0} / 阻断: ${r.deniedToolsCount || 0}</span>
+              </div>
+              <div class="route-card-actions">
+                ${actionBtn}
+              </div>
             </div>
-            <div class="route-prop">
-              <span class="route-prop-label">命名空间前缀</span>
-              <span class="route-prop-val">${r.prefix}</span>
-            </div>
-            <div class="route-prop">
-              <span class="route-prop-label">上游目标 URI / 指令</span>
-              <span class="route-prop-val">${r.uri || r.stdioCommand || '-'}</span>
-            </div>
-            <div class="route-prop">
-              <span class="route-prop-label">默认 ACL 治理模式</span>
-              <span class="route-prop-val">${r.aclMode || 'INHERIT'}</span>
-            </div>
-            <div class="route-prop">
-              <span class="route-prop-label">策略规则计数</span>
-              <span class="route-prop-val">允许: ${r.allowedToolsCount || 0} / 阻断: ${r.deniedToolsCount || 0}</span>
-            </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
       } catch (e) {
         console.error('加载路由异常:', e);
+      }
+    }
+
+    // Server 热启停切换
+    async function toggleRouteStatus(routeId, enabled) {
+      try {
+        const res = await fetch('/api/v1/routes/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ routeId, enabled })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast(`Server [${routeId}] ${enabled ? '已热启用' : '已热停用'}`);
+          await loadRoutes();
+          await loadTools();
+          await loadOverview();
+        } else {
+          showToast(`启停失败: ${data.message || '未知错误'}`);
+        }
+      } catch (e) {
+        showToast('热启停网络异常: ' + e.message);
       }
     }
 

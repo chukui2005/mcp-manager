@@ -96,13 +96,18 @@ public class WebConsoleController {
             Map<String, Object> gateway = new LinkedHashMap<>();
             gateway.put("status", "UP");
             gateway.put("version", "0.1.0-SNAPSHOT");
+            gateway.put("brand", "mcp-governance");
             gateway.put("uptimeMs", Math.max(0L, Duration.between(startupTime, Instant.now()).toMillis()));
             resp.put("gateway", gateway);
 
             // 2. 数量统计
             Map<String, Object> counts = new LinkedHashMap<>();
-            counts.put("upstreamCount", routeManager.size());
+            int totalUpstreams = routeManager.size();
+            int activeUpstreams = routeManager.activeSize();
+            counts.put("upstreamCount", totalUpstreams);
+            counts.put("activeUpstreamCount", activeUpstreams);
             counts.put("toolCount", tools.size());
+            counts.put("activeToolCount", tools.size());
             resp.put("counts", counts);
 
             // 3. 运行时治理度量统计
@@ -121,7 +126,7 @@ public class WebConsoleController {
     }
 
     /**
-     * 查询全量工具资产发现清单（包含动态 ACL 状态与参数描述）。
+     * 查询全量工具资产发现清单（包含动态 ACL 状态、所属下游启停状态与 Tool Picker 勾选状态）。
      * 对应契约：GET /api/v1/tools
      *
      * @return 工具列表
@@ -139,6 +144,7 @@ public class WebConsoleController {
                             List<Map<String, Object>> list = new ArrayList<>();
                             String prefix = route.getPrefix();
                             String upstreamId = route.getId();
+                            boolean upstreamEnabled = route.isEnabled();
                             RouteGovernanceConfig gov = route.getGovernance();
 
                             for (GovernedTool raw : rawList) {
@@ -148,12 +154,18 @@ public class WebConsoleController {
                                 item.put("name", aggregatedName);
                                 item.put("rawName", rawName);
                                 item.put("upstreamId", upstreamId);
+                                item.put("upstreamEnabled", upstreamEnabled);
                                 item.put("description", raw.description() != null ? raw.description() : "");
-                                item.put("inputSchema", raw.inputSchema() != null ? raw.inputSchema() : Collections.emptyMap());
 
                                 // 计算 ACL 状态
                                 String aclStatus = calculateAclStatus(gov, rawName);
                                 item.put("aclStatus", aclStatus);
+
+                                // Tool Picker 勾选状态（上游在线且 ACL 为 ALLOWED 时为 true）
+                                boolean toolEnabled = upstreamEnabled && "ALLOWED".equalsIgnoreCase(aclStatus);
+                                item.put("enabled", toolEnabled);
+
+                                item.put("inputSchema", raw.inputSchema() != null ? raw.inputSchema() : Collections.emptyMap());
                                 list.add(item);
                             }
                             return list;
@@ -174,25 +186,92 @@ public class WebConsoleController {
     }
 
     /**
-     * 动态下发针对工具的 ACL 访问控制策略（支持 ALLOW, DENY, RESET）。
+     * 一键热启停指定下游 MCP Server 路由。
+     * 对应契约：POST /api/v1/routes/status
+     *
+     * @param requestBody 入参，包含 routeId 与 enabled
+     * @return 操作结果
+     */
+    @PostMapping("/routes/status")
+    public ResponseEntity<Map<String, Object>> updateRouteStatus(@RequestBody Map<String, Object> requestBody) {
+        if (requestBody == null) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "请求体不能为空"));
+        }
+        Object routeIdObj = requestBody.get("routeId");
+        Object enabledObj = requestBody.get("enabled");
+
+        if (routeIdObj == null || enabledObj == null) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "routeId 和 enabled 不能为空"));
+        }
+
+        String routeId = String.valueOf(routeIdObj).trim();
+        boolean enabled;
+        if (enabledObj instanceof Boolean) {
+            enabled = (Boolean) enabledObj;
+        } else {
+            enabled = Boolean.parseBoolean(String.valueOf(enabledObj));
+        }
+
+        Optional<RouteDefinition> routeOpt = routeManager.getRouteById(routeId);
+        if (routeOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
+                    "success", false,
+                    "routeId", routeId,
+                    "message", "未找到匹配的路由 ID: " + routeId
+            ));
+        }
+
+        routeManager.setRouteEnabled(routeId, enabled);
+        String currentStatus = enabled ? "UP" : "STOPPED";
+        String message = enabled ? "Server 路由已热启用，下属工具已恢复聚合与分发" : "Server 路由已热停用，下属工具已全部下线";
+
+        Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("success", true);
+        resp.put("routeId", routeId);
+        resp.put("enabled", enabled);
+        resp.put("status", currentStatus);
+        resp.put("message", message);
+        return ResponseEntity.ok(resp);
+    }
+
+    /**
+     * 动态下发针对工具的 ACL 访问控制策略与 Tool Picker 勾选（支持 enabled: true/false 或 action: ALLOW/DENY/RESET）。
      * 对应契约：POST /api/v1/tools/acl
      *
      * @param requestBody 入参
      * @return 操作结果
      */
     @PostMapping("/tools/acl")
-    public ResponseEntity<Map<String, Object>> updateToolAcl(@RequestBody Map<String, String> requestBody) {
+    public ResponseEntity<Map<String, Object>> updateToolAcl(@RequestBody Map<String, Object> requestBody) {
         if (requestBody == null) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", "请求体不能为空"));
         }
-        String toolName = requestBody.get("toolName");
-        String action = requestBody.get("action");
+        Object toolNameObj = requestBody.get("toolName");
+        if (toolNameObj == null || String.valueOf(toolNameObj).trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "toolName 不能为空"));
+        }
+        String toolName = String.valueOf(toolNameObj).trim();
 
-        if (toolName == null || toolName.trim().isEmpty() || action == null || action.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "toolName 和 action 不能为空"));
+        // 兼容 action 与 enabled 两种入参形式
+        String action = null;
+        if (requestBody.containsKey("action") && requestBody.get("action") != null) {
+            action = String.valueOf(requestBody.get("action")).trim();
+        } else if (requestBody.containsKey("enabled") && requestBody.get("enabled") != null) {
+            boolean enabledVal;
+            Object eObj = requestBody.get("enabled");
+            if (eObj instanceof Boolean) {
+                enabledVal = (Boolean) eObj;
+            } else {
+                enabledVal = Boolean.parseBoolean(String.valueOf(eObj));
+            }
+            action = enabledVal ? "ALLOW" : "DENY";
         }
 
-        Optional<RouteMatchResult> matchOpt = routeManager.matchByToolName(toolName.trim());
+        if (action == null || action.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("success", false, "message", "action 或 enabled 必须至少指定一个"));
+        }
+
+        Optional<RouteMatchResult> matchOpt = routeManager.matchByToolName(toolName);
         if (matchOpt.isEmpty()) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of(
                     "success", false,
@@ -207,11 +286,13 @@ public class WebConsoleController {
 
         try {
             String updatedStatus = routeManager.updateToolAcl(routeId, rawToolName, action.trim());
+            boolean isToolEnabled = "ALLOWED".equalsIgnoreCase(updatedStatus);
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("success", true);
             resp.put("toolName", toolName);
             resp.put("currentStatus", updatedStatus);
-            resp.put("message", "工具 ACL 策略更新成功");
+            resp.put("enabled", isToolEnabled);
+            resp.put("message", isToolEnabled ? "工具已启用并纳入 tools/list 暴露" : "工具已禁用并从 tools/list 中静默剔除");
             return ResponseEntity.ok(resp);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
@@ -275,6 +356,8 @@ public class WebConsoleController {
             map.put("prefix", r.getPrefix());
             map.put("protocol", r.getProtocol() != null ? r.getProtocol().name() : "HTTP");
             map.put("uri", r.getUri());
+            map.put("enabled", r.isEnabled());
+            map.put("status", r.isEnabled() ? "UP" : "STOPPED");
             if (r.getStdioCommand() != null) {
                 map.put("stdioCommand", r.getStdioCommand().getCommand());
                 map.put("stdioArgs", r.getStdioCommand().getArgs());

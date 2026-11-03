@@ -1,4 +1,4 @@
-# MCP Governance (mcp-manager)
+# mcp-governance
 
 > **English** | [简体中文](README.zh-CN.md)
 
@@ -13,19 +13,43 @@
 
 ---
 
-## 1. What is MCP Governance?
+## 1. What is mcp-governance?
 
 As enterprise AI agents evolve, developers and organizations connect dozens of MCP Servers, hundreds of external tools, and heterogeneous models. However, managing MCP security lacks visibility, security audits, and automated policy enforcement.
 
-**MCP Governance (`mcp-manager`)** provides progressive, enterprise-grade governance infrastructure:
+**`mcp-governance`** provides progressive, enterprise-grade governance infrastructure:
 1. **Offline Static Scanner (Phase 1)**: Pure Java static analysis CLI and GitHub Action that detects token leakage, broad scope permissions, hidden prompt injections, and tool shadowing attacks in MCP configuration files, reporting findings via standard **OASIS SARIF 2.1.0** into GitHub Code Scanning.
 2. **Embedded Runtime Governance (Phase 2)**: Non-intrusive Spring Boot Starter providing pure Java interceptor pipelines, Tool ACL (whitelisting/blacklisting), regex parameter validation, Prometheus/Micrometer metrics (`/actuator/mcpGovernance`), and SIEM-ready structured JSON audit logs (`McpAuditEvent`).
-3. **Standalone Control Plane Gateway (Phase 3)**: Independent Spring Boot Reactive WebFlux gateway aggregating multi-protocol upstreams (HTTP, SSE, and managed local STDIO sandboxes) with prefix-based namespace collision avoidance, tenant-level tool ACL filtering, connection pooling, and full governance pipeline enforcement.
+3. **Standalone Control Plane Gateway & Web Console (Phase 3)**: Independent Spring Boot Reactive WebFlux gateway aggregating multi-protocol upstreams (HTTP, SSE, and managed local STDIO sandboxes) with prefix-based namespace collision avoidance, tenant-level tool ACL filtering, connection pooling, and full governance pipeline enforcement. Features a built-in lightweight Web Console for upstream Server hot start/stop, interactive Tool Picker toggle, and real-time masked SSE audit streaming.
 
 ---
 
-## 2. Terminal High-Fidelity Preview
+## 2. High-Fidelity Previews
 
+### 2.1 Web Admin Console & Tool Picker Dashboard
+Access `http://127.0.0.1:18080/` to visualize and control your entire MCP fleet:
+- **Server Topology & Hot Start/Stop**: Instantly enable or shut down downstream MCP servers with a single click. When stopped, all tools under that server are invisible to agents.
+- **Tenant Tool Picker**: Checkbox-based tool permission toggles. Unchecking immediately silences and hides tools from agent discovery (`tools/list`).
+- **Live Desensitized Audit Stream**: Real-time SSE waterfall stream with automatic parameter masking (MCP01 protection) and sub-millisecond execution telemetry.
+
+```text
++----------------------------------------------------------------------------------------------------+
+|  mcp-governance                                                      [ Gateway UP ] [ 127.0.0.1 ]   |
++----------------------------------------------------------------------------------------------------+
+|  Upstream Servers: 2 / 2 Online  |  Tools: 18 / 25 Active  |  Invocations: 1,250  |  Blocked: 45    |
++----------------------------------------------------------------------------------------------------+
+|  [ Tool Picker Governance ]                                 [ Server Topology & Hot Toggle ]       |
+|  [✓] k8s_get_pods        [ALLOWED]  [Disable]               |  [k8s-svc]   HTTP   UP   [Stop Server]   |
+|  [✓] k8s_describe_pod    [ALLOWED]  [Disable]               |  [fs-local]  STDIO  UP   [Stop Server]   |
+|  [ ] k8s_delete_pod      [DENIED]   [Enable]                +--------------------------------------+
++----------------------------------------------------------------------------------------------------+
+|  Real-time SSE Audit Stream:                                                                       |
+|  [SUCCESS] k8s_get_pods (caller: agent-01)  duration: 12ms  args: {"namespace": "prod"}            |
+|  [BLOCKED] k8s_delete_pod (caller: agent-02) duration: 1ms   reason: Tool disabled in Tool Picker  |
++----------------------------------------------------------------------------------------------------+
+```
+
+### 2.2 CLI Static Scanner Terminal Output
 When running `mcp-governance-cli` against an MCP configuration, findings are rendered in high-contrast ANSI Markdown cards with strict exit code enforcement:
 
 ```text

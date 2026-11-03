@@ -47,6 +47,11 @@ public class RouteDefinition {
     private RouteGovernanceConfig governance;
 
     /**
+     * 是否启用该下游路由（默认为 true 启用；当置为 false 时，该路由热停用，下属工具不在 tools/list 暴露且拒绝调用）。
+     */
+    private volatile boolean enabled = true;
+
+    /**
      * 默认构造函数。
      */
     public RouteDefinition() {
@@ -193,12 +198,31 @@ public class RouteDefinition {
         this.governance = governance;
     }
 
+    /**
+     * 获取路由是否启用。
+     *
+     * @return true 表示启用，false 表示停用
+     */
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    /**
+     * 设置路由是否启用。
+     *
+     * @param enabled true 表示启用，false 表示停用
+     */
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RouteDefinition that = (RouteDefinition) o;
-        return Objects.equals(id, that.id) &&
+        return enabled == that.enabled &&
+                Objects.equals(id, that.id) &&
                 protocol == that.protocol &&
                 Objects.equals(prefix, that.prefix) &&
                 Objects.equals(uri, that.uri) &&
@@ -209,6 +233,6 @@ public class RouteDefinition {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, protocol, prefix, uri, stdioCommand, auth, governance);
+        return Objects.hash(id, protocol, prefix, uri, stdioCommand, auth, governance, enabled);
     }
 }

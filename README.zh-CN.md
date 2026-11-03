@@ -8,7 +8,7 @@
 [![Java 17](https://img.shields.io/badge/Java-17-orange.svg)](#)
 [![Spring Boot 3.3](https://img.shields.io/badge/Spring%20Boot-3.3.4-brightgreen.svg)](#)
 [![SARIF 2.1.0](https://img.shields.io/badge/SARIF-2.1.0-blue.svg)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
-[![正式发布](https://img.shields.io/badge/release-v0.3.0--gateway-blue.svg)](#)
+[![正式发布](https://img.shields.io/badge/release-v1.0.0-blue.svg)](#)
 [![开源协议](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
 ---

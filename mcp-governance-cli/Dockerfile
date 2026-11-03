@@ -14,8 +14,8 @@ WORKDIR /workspace
 RUN mkdir -p /app && \
     chown -R mcp:mcp /app /workspace
 
-# 拷贝 CLI 可执行 jar 包
-ARG JAR_FILE=target/mcp-governance-cli-*.jar
+# 拷贝 CLI 可执行 fat-jar 包（必须是包含依赖的 -all.jar）
+ARG JAR_FILE=target/mcp-governance-cli-*-all.jar
 COPY ${JAR_FILE} /app/cli.jar
 RUN chown mcp:mcp /app/cli.jar
 

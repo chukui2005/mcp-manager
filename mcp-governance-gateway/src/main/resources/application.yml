@@ -1,12 +1,18 @@
 server:
-  port: 8080
-  address: 127.0.0.1
+  port: ${SERVER_PORT:18080}
+  address: ${SERVER_ADDRESS:127.0.0.1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,info,mcpGovernance"
 
 mcp:
   governance:
     gateway:
       host: "127.0.0.1"
-      port: 8080
+      port: 18080
       request-timeout-ms: 30000
       upstreams:
         - id: "demo-service"

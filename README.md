@@ -83,10 +83,9 @@ Status: BLOCKED (Found 2 CRITICAL, 2 HIGH violations) -> Exit Code: 2
 
 ## 4. Quick Start (Under 30 Seconds)
 
-### Option 1: Standalone Scanner CLI (Fat-JAR)
+### Option 1: Standalone Scanner CLI
 
-Build the fat-jar and run an instant static security scan against any MCP configuration:
-
+#### Via Executable Fat-JAR
 ```bash
 # Package all modules into an executable fat-jar
 mvn clean package -DskipTests
@@ -95,6 +94,12 @@ mvn clean package -DskipTests
 java -jar mcp-governance-cli/target/mcp-governance-cli-0.1.0-SNAPSHOT-all.jar \
   samples/vulnerable-mcp.json \
   --output scan-result.sarif
+```
+
+#### Via Docker (Zero Java Setup)
+Run static scan directly using Docker, mounting your local config:
+```bash
+docker run --rm -v $(pwd):/workspace chukui2005/mcp-scan:latest mcp.json
 ```
 
 ### Option 2: Embedded Spring Boot Starter (Zero-Intrusion)
@@ -148,11 +153,19 @@ Aggregate distributed upstreams (HTTP, SSE, STDIO) into a unified secure gateway
 ```
 
 2. Start the gateway:
+
+#### Via Java JAR:
 ```bash
 java -jar mcp-governance-gateway/target/mcp-governance-gateway-0.1.0-SNAPSHOT.jar
 ```
 
-3. Connect your AI Agents (Cursor, Claude Desktop, LangChain) directly to `http://127.0.0.1:8080/mcp/v1/rpc`.
+#### Via Docker Compose (Recommended):
+One-click start with configuration volume mounting:
+```bash
+docker-compose up -d
+```
+
+3. Connect your AI Agents (Cursor, Claude Desktop, LangChain) directly to `http://127.0.0.1:8080/mcp/v1/rpc` (or `http://127.0.0.1:18080/mcp/v1/rpc` via Docker Compose).
 
 ### Option 4: GitHub Action in CI (5 Lines of YAML)
 

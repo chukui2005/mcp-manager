@@ -83,10 +83,9 @@ Status: BLOCKED (Found 2 CRITICAL, 2 HIGH violations) -> Exit Code: 2
 
 ## 4. 快速上手 (Quick Start，30 秒跑起来)
 
-### 方式一：独立 CLI 扫描工具 (Fat-JAR)
+### 方式一：独立 CLI 扫描工具
 
-编译生成单 JAR 可执行包，直接对任何 MCP 配置文件发起静态安全扫描：
-
+#### 本地 Java Fat-JAR 运行：
 ```bash
 # 构建全部模块并生成 fat-jar
 mvn clean package -DskipTests
@@ -95,6 +94,12 @@ mvn clean package -DskipTests
 java -jar mcp-governance-cli/target/mcp-governance-cli-0.1.0-SNAPSHOT-all.jar \
   samples/vulnerable-mcp.json \
   --output scan-result.sarif
+```
+
+#### Docker 一键免配置运行：
+无需安装 Java 和 Maven，直接挂载当前目录扫描：
+```bash
+docker run --rm -v $(pwd):/workspace chukui2005/mcp-scan:latest mcp.json
 ```
 
 ### 方式二：嵌入式 Spring Boot Starter（零侵入）
@@ -148,11 +153,19 @@ mcp:
 ```
 
 2. 启动独立网关：
+
+#### 本地 Java 运行：
 ```bash
 java -jar mcp-governance-gateway/target/mcp-governance-gateway-0.1.0-SNAPSHOT.jar
 ```
 
-3. 将各种 AI Agent（Cursor, Claude Desktop, Dify 等）直接连接到 `http://127.0.0.1:8080/mcp/v1/rpc`。
+#### Docker Compose 一键启动 (推荐)：
+支持配置自动挂载与健康检查：
+```bash
+docker-compose up -d
+```
+
+3. 将各种 AI Agent（Cursor, Claude Desktop, Dify 等）直接连接到 `http://127.0.0.1:8080/mcp/v1/rpc`（若使用 Docker Compose 则连接 `http://127.0.0.1:18080/mcp/v1/rpc`）。
 
 ### 方式四：GitHub Action CI 流水线 (5 行 YAML)
 

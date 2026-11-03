@@ -85,29 +85,35 @@
 - 架构资产已沉淀至 ADR 0000 ~ ADR 0010；
 - 全工程支持 Docker 一键启动、docker-compose 编排与 Maven Wrapper 零配置构建。
 
-### 下一个新会话的核心任务建议：TASK-015 (Phase 4 筹备：Web 控制台/UI 治理或动态凭据托管)
-根据路线图，可启动 Phase 4 核心能力建设：
-1. **控制面可视化与动态管理 (Web Admin / Dashboard)** 或
-2. **多租户动态凭据代理与 OAuth 2.1 鉴权中心 (Token Vault)**。
+### 下一个新会话的核心任务：TASK-015 (高颜值轻量 Web 控制台与开源多媒体门面)
+1. **轻量自包含 Web 控制台 (Web Admin Dashboard)**:
+   - 在 `mcp-governance-gateway` 的 `src/main/resources/static/` 目录下嵌入现代化单页 Dashboard（自包含静态资源，零外部 node 服务依赖）；
+   - **大盘首页 (Overview)**: 实时展示当前连接的 MCP Server 数量、聚合 Tool 数量、今日拦截次数、平均调用耗时折线图与实时调用日志瀑布流；
+   - **工具资产与策略中心 (Tool & Policy Explorer)**: 卡片式展示所有下游工具、参数定义、风险等级（LOW/HIGH/CRITICAL），提供**一键禁用/放行按钮（动态下发 Tool ACL 黑白名单）**；
+   - **安全审计检索 (Audit Viewer)**: 实时展示脱敏后的 `McpAuditEvent` 调用记录，直观看到 `***` 打码效果与阻断原因；
+   - 浏览器打开 `http://127.0.0.1:18080/` 直接进入控制台。
+2. **开源门面多媒体升级 (README Visual Assets)**:
+   - 制作/预留并在 README 中插入 **1 张高保真架构拓扑图/大盘截图** 或 **30 秒 Web 控制台操作动态 GIF**，替换原先纯文本的代码块，实现 5 秒内抓住 GitHub 用户的眼球，助力 GitHub Star 传播。
 
 ---
 
 ## 4. 给新会话统筹者的开场接力指令 (直接复制)
 
 ```markdown
-我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理与静态审计层）。
-Phase 1、Phase 2、Phase 3 及容器化开源基建 (TASK-014) 已全部合入 main 分支。
+我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理、安全审计与控制面网关，v1.0.0）。
+Phase 1 静态扫描、Phase 2 嵌入式 Starter 与 Phase 3 独立网关后端内核已全部完成并实测通过。
 请你严格阅读仓库根目录的核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
 3. docs/environment-baseline.md（技术与版本基线）
-4. docs/adr/0010-open-source-infrastructure-and-dockerization.md（开源基建与容器化 ADR）
-5. README.md 与 README.zh-CN.md（项目门面与路线图）
+4. README.md 与 README.zh-CN.md（项目门面与路线图）
 
 【你的职责】：
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-推进下一个里程碑任务（如 TASK-015：Phase 4 控制面治理能力预研与实现）。
-所有任务严格执行状态机（DESIGN -> READY -> IN_REVIEW -> READY_TO_LAND -> DONE），未经人类在 .worklog/ 中签署 Approved: Yes 严禁动工，未经人类最终批准严禁擅自 commit/push 到 main。所有文档、注释一律使用中文。
+启动 TASK-015：网关内置轻量 Web 控制台 (Web Admin UI) 与开源多媒体门面升级。
+1. 架构师先调研并产出 ADR 0011 与设计蓝图：在 mcp-governance-gateway 内部嵌入一个自包含的静态 Web 控制台（打开 http://127.0.0.1:18080 直接访问），包含工具大盘、一键 ACL 开关、实时脱敏审计日志流；
+2. 规划 README 的高保真截图/GIF 占位与多媒体展示；
+3. 待我签署 Approved: Yes 后由工程师在隔离分支实现，经审核员 PASS 后合并。所有文档、注释一律使用中文。
 ```

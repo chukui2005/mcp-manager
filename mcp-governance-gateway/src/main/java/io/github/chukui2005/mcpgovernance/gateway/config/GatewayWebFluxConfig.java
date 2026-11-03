@@ -59,4 +59,15 @@ public class GatewayWebFluxConfig {
         source.registerCorsConfiguration("/**", config);
         return new CorsWebFilter(source);
     }
+
+    /**
+     * 注册网关默认的纯内存指标收集器 Bean。
+     *
+     * @return McpMetricsCollector 实例
+     */
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+    public io.github.chukui2005.mcpgov.core.runtime.metrics.McpMetricsCollector mcpMetricsCollector() {
+        return new io.github.chukui2005.mcpgov.core.runtime.metrics.InMemoryMcpMetricsCollector();
+    }
 }

@@ -28,8 +28,9 @@ EXPOSE 18080
 # 容器健康检查：探测 Spring Boot Actuator 端点 /actuator/health
 HEALTHCHECK --interval=15s --timeout=3s --retries=3 CMD wget -qO- http://localhost:18080/actuator/health || exit 1
 
-# 默认环境变量配置
-ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
+# 默认环境变量配置：容器内监听 0.0.0.0 接受端口映射
+ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError" \
+    SERVER_ADDRESS="0.0.0.0"
 
 # 启动命令
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/gateway.jar"]

@@ -1,10 +1,8 @@
-version: '3.8'
-
 services:
   mcp-gateway:
     build:
-      context: .
-      dockerfile: mcp-governance-gateway/Dockerfile
+      context: ./mcp-governance-gateway
+      dockerfile: Dockerfile
     image: mcp-governance-gateway:latest
     container_name: mcp-governance-gateway
     restart: unless-stopped
@@ -12,10 +10,9 @@ services:
       - "18080:18080"
     environment:
       - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC
-      - SPRING_PROFILES_ACTIVE=prod
+      - SERVER_PORT=18080
+      - SERVER_ADDRESS=0.0.0.0
       - MCP_GATEWAY_TOKEN_AUTH_ENABLED=false
-    volumes:
-      - ./config:/app/config:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:18080/actuator/health || exit 1"]
       interval: 15s

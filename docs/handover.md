@@ -2,8 +2,8 @@
 
 > **当前维护者**: MCP Governance 统筹中枢  
 > **更新时间**: 2026-11-03  
-> **当前版本**: v0.3.0-gateway + 开源容器化基建完备 (TASK-014 已合入 main)  
-> **对应阶段**: Phase 3 容器化与开源基建收官 / Phase 4 (控制面 UI 与多租户凭据体系) 筹备中
+> **当前版本**: v1.0.0 (TASK-015 已合入 main)  
+> **对应阶段**: Phase 3 独立控制面网关收官 / Phase 4 (控制面 UI 与多租户凭据体系) 首发交付完成
 
 ---
 
@@ -76,24 +76,30 @@
     - **构建包装器**: 补齐跨平台 `mvnw`、`mvnw.cmd` 与 Maven 3.9.9 包装器；
     - **拓扑与版本一致性**: 统一模块版本 `0.1.0-SNAPSHOT`，更新《AGENTS.md》第 4 节项目目录树；
     - **全量门禁**: 全工程 7 个模块、130 个单元与集成测试 100% 绿灯全部通过，已正式合入 `main`。
+16. **`TASK-015` 网关内置轻量 Web 控制台 (Web Admin UI) 与开源多媒体门面升级 (控制面可视化收官)**:
+    - **架构资产**: 产出 ADR 0011（`docs/adr/0011-gateway-web-console.md`）、蓝图（`docs/architecture/blueprint-0011-web-console.md`）与控制面契约（`docs/contracts/web-console-api.json`）；
+    - **自包含零构建单页 Web 控制台**: 在 `mcp-governance-gateway/src/main/resources/static/index.html` 交付现代化科技质感 SPA（Vanilla HTML5/CSS3/ES6+），零 npm/node 依赖，浏览器直达 `http://127.0.0.1:18080/`；
+    - **大盘概览与资产中心**: 提供全局服务数、工具数、调用量、成功率、拦截率指标大盘，以及可实时搜索、参数折叠展开的工具资产卡片；
+    - **一键 ACL 策略动态生效**: 在 `RouteManager` 与控制器中实现线程安全的 `POST /api/v1/tools/acl`，支持界面一键阻断 (DENY) / 放行 (ALLOW)，秒级在 `tools/list` 视图与调用链中生效；
+    - **实时脱敏审计流 (SSE)**: 实现 `InMemoryAuditRingBuffer` 环形缓冲与 `GET /api/v1/audit/stream` SSE 长连接，实时滚屏呈现 `***` 脱敏入参、执行结果与耗时瀑布流；
+    - **全量门禁**: 全工程测试 100% PASS，Javadoc 零警告，审核员审查 `verdict: PASS`，已正式合并入 `main`。
 
 ---
 
 ## 3. 当前进展与下一步建议 (新会话核心任务规划)
 
-至此，**Phase 1、Phase 2、Phase 3 以及开源容器化基建 (TASK-014) 已全部合入 main 分支**！
-- 架构资产已沉淀至 ADR 0000 ~ ADR 0010；
-- 全工程支持 Docker 一键启动、docker-compose 编排与 Maven Wrapper 零配置构建。
+至此，**TASK-000 至 TASK-015 已全部合入 main 分支**！
+- 架构资产已沉淀至 ADR 0000 ~ ADR 0011；
+- 网关已具备完备的内核能力（HTTP/SSE/STDIO 多协议接入、动态前缀、不可变责任链、Docker 容器化）与内嵌 Web 可视化控制台。
 
-### 下一个新会话的核心任务：TASK-015 (高颜值轻量 Web 控制台与开源多媒体门面)
-1. **轻量自包含 Web 控制台 (Web Admin Dashboard)**:
-   - 在 `mcp-governance-gateway` 的 `src/main/resources/static/` 目录下嵌入现代化单页 Dashboard（自包含静态资源，零外部 node 服务依赖）；
-   - **大盘首页 (Overview)**: 实时展示当前连接的 MCP Server 数量、聚合 Tool 数量、今日拦截次数、平均调用耗时折线图与实时调用日志瀑布流；
-   - **工具资产与策略中心 (Tool & Policy Explorer)**: 卡片式展示所有下游工具、参数定义、风险等级（LOW/HIGH/CRITICAL），提供**一键禁用/放行按钮（动态下发 Tool ACL 黑白名单）**；
-   - **安全审计检索 (Audit Viewer)**: 实时展示脱敏后的 `McpAuditEvent` 调用记录，直观看到 `***` 打码效果与阻断原因；
-   - 浏览器打开 `http://127.0.0.1:18080/` 直接进入控制台。
-2. **开源门面多媒体升级 (README Visual Assets)**:
-   - 制作/预留并在 README 中插入 **1 张高保真架构拓扑图/大盘截图** 或 **30 秒 Web 控制台操作动态 GIF**，替换原先纯文本的代码块，实现 5 秒内抓住 GitHub 用户的眼球，助力 GitHub Star 传播。
+### 下一个新会话的核心任务规划：TASK-016 (多租户 API Key / OAuth 凭据体系与细粒度配额治理)
+1. **多租户认证与凭据绑定 (Tenant & API Key Management)**:
+   - 建立网关入站调用凭据校验（如 `X-MCP-API-Key` 或 Bearer Token），映射到特定租户/Agent；
+   - 实现多租户维度的工具可见性隔离与 ACL 绑定；
+2. **细粒度限流与调用配额 (Rate Limiting & Quotas)**:
+   - 针对不同租户或高危工具配置 QPS / 并发数限制与日配额熔断；
+3. **Web 控制台租户与配额面板扩展**:
+   - 在 Web 控制台中增加租户与 Key 管理面板。
 
 ---
 
@@ -101,7 +107,7 @@
 
 ```markdown
 我是项目负责人。本项目是 mcp-manager（Java 原生 MCP 治理、安全审计与控制面网关，v1.0.0）。
-Phase 1 静态扫描、Phase 2 嵌入式 Starter 与 Phase 3 独立网关后端内核已全部完成并实测通过。
+Phase 1 静态扫描、Phase 2 嵌入式 Starter、Phase 3 独立网关后端内核及 TASK-015 内置轻量 Web 控制台已全部完成并合入 main。
 请你严格阅读仓库根目录的核心基线文档：
 1. AGENTS.md（项目宪章、三权分立与会话轮转制度）
 2. docs/handover.md（换届交接记录）
@@ -112,8 +118,7 @@ Phase 1 静态扫描、Phase 2 嵌入式 Starter 与 Phase 3 独立网关后端�
 作为本项目的统筹中枢，请直接【启用智能体团队 (Agent Teams)】，组建 architect（架构师）、engineer（研发工程师）、reviewer（代码审核员）三位常驻队友。
 
 【当前启动任务】：
-启动 TASK-015：网关内置轻量 Web 控制台 (Web Admin UI) 与开源多媒体门面升级。
-1. 架构师先调研并产出 ADR 0011 与设计蓝图：在 mcp-governance-gateway 内部嵌入一个自包含的静态 Web 控制台（打开 http://127.0.0.1:18080 直接访问），包含工具大盘、一键 ACL 开关、实时脱敏审计日志流；
-2. 规划 README 的高保真截图/GIF 占位与多媒体展示；
-3. 待我签署 Approved: Yes 后由工程师在隔离分支实现，经审核员 PASS 后合并。所有文档、注释一律使用中文。
+启动 TASK-016：多租户 API Key 凭据体系与网关细粒度速率配额治理。
+1. 架构师先调研并产出 ADR 0012 与设计蓝图；
+2. 待我签署 Approved: Yes 后由工程师在隔离分支实现，经审核员 PASS 后合并。所有文档、注释一律使用中文。
 ```

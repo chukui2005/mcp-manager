@@ -137,9 +137,9 @@ mcp:
           regex-pattern: "^/safe/.*"  # 防路径穿越正则拦截
 ```
 
-### 方式三：独立控制面网关 (多上游聚合与代理)
+### 方式三：独立控制面网关 (多上游聚合与内置轻量 Web 控制台)
 
-将异构分布式上游（HTTP、SSE、本地 STDIO）聚合为统一的网关入口：
+将异构分布式上游（HTTP、SSE、本地 STDIO）聚合为统一的网关入口，并开箱即用访问内置 Web 控制台：
 
 1. 编写路由配置 `gateway-routes.json`：
 ```json
@@ -165,7 +165,9 @@ java -jar mcp-governance-gateway/target/mcp-governance-gateway-0.1.0-SNAPSHOT.ja
 docker-compose up -d
 ```
 
-3. 将各种 AI Agent（Cursor, Claude Desktop, Dify 等）直接连接到 `http://127.0.0.1:8080/mcp/v1/rpc`（若使用 Docker Compose 则连接 `http://127.0.0.1:18080/mcp/v1/rpc`）。
+3. **访问 Web 控制台与连接网关**：
+- **浏览器访问控制台**：打开 `http://127.0.0.1:18080/` 直接进入内置 Web Admin Dashboard。一站式实时查看下游服务拓扑、聚合工具资产，支持一键 ACL 阻断/放行与 SSE 脱敏实时审计流；
+- **AI Agent 接入网关**：将各类 Agent（Cursor, Claude Desktop, Dify 等）直接连接到 `http://127.0.0.1:18080/mcp/v1/rpc`。
 
 ### 方式四：GitHub Action CI 流水线 (5 行 YAML)
 

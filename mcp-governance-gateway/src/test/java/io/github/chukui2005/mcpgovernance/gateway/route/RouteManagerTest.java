@@ -107,4 +107,35 @@ class RouteManagerTest {
         assertThat(routeManager.size()).isEqualTo(0);
         assertThat(routeManager.getAllRoutes()).isEmpty();
     }
+
+    @Test
+    @DisplayName("测试动态更新工具 ACL 策略并实时生效")
+    void testDynamicUpdateToolAcl() {
+        RouteDefinition route = new RouteDefinition();
+        route.setId("fs-svc");
+        route.setPrefix("fs_");
+        route.setProtocol(UpstreamProtocol.HTTP);
+        route.setUri("http://127.0.0.1:8080/mcp");
+        routeManager.registerRoute(route);
+
+        // 1. 动态阻断 delete_file
+        String status1 = routeManager.updateToolAcl("fs-svc", "delete_file", "DENY");
+        assertThat(status1).isEqualTo("DENIED");
+
+        RouteDefinition updated = routeManager.getRouteById("fs-svc").orElseThrow();
+        assertThat(updated.getGovernance().getDeniedTools()).contains("delete_file");
+        assertThat(updated.getGovernance().getAllowedTools()).doesNotContain("delete_file");
+
+        // 2. 动态放行 delete_file
+        String status2 = routeManager.updateToolAcl("fs-svc", "delete_file", "ALLOW");
+        assertThat(status2).isEqualTo("ALLOWED");
+        assertThat(updated.getGovernance().getAllowedTools()).contains("delete_file");
+        assertThat(updated.getGovernance().getDeniedTools()).doesNotContain("delete_file");
+
+        // 3. 动态重置 delete_file
+        String status3 = routeManager.updateToolAcl("fs-svc", "delete_file", "RESET");
+        assertThat(status3).isEqualTo("ALLOWED");
+        assertThat(updated.getGovernance().getAllowedTools()).doesNotContain("delete_file");
+        assertThat(updated.getGovernance().getDeniedTools()).doesNotContain("delete_file");
+    }
 }

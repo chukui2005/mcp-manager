@@ -1,6 +1,7 @@
 package io.github.chukui2005.mcpgovernance.gateway.route;
 
 import io.github.chukui2005.mcpgovernance.gateway.config.RouteDefinition;
+import io.github.chukui2005.mcpgovernance.gateway.config.RouteGovernanceConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -170,6 +171,73 @@ public class RouteManager {
      */
     public int size() {
         return routesById.size();
+    }
+
+    /**
+     * 动态更新指定下游路由的 ACL 策略。
+     * 线程安全地修改对应路由的 {@link RouteGovernanceConfig}，实现策略实时生效。
+     *
+     * @param routeId 路由 ID
+     * @param rawToolName 下游原始工具名称
+     * @param action 动作：ALLOW（放行）、DENY（阻断）、RESET（重置移除规则）
+     * @return 更新后的工具状态（ALLOWED 或 DENIED）
+     * @throws IllegalArgumentException 当路由不存在或参数无效时抛出
+     */
+    public synchronized String updateToolAcl(String routeId, String rawToolName, String action) {
+        Objects.requireNonNull(routeId, "routeId 不能为 null");
+        Objects.requireNonNull(rawToolName, "rawToolName 不能为 null");
+        Objects.requireNonNull(action, "action 不能为 null");
+
+        RouteDefinition route = routesById.get(routeId);
+        if (route == null) {
+            throw new IllegalArgumentException("未找到对应的下游路由: id=" + routeId);
+        }
+
+        RouteGovernanceConfig governance = route.getGovernance();
+        if (governance == null) {
+            governance = new RouteGovernanceConfig();
+            route.setGovernance(governance);
+        }
+
+        List<String> allowed = new ArrayList<>(governance.getAllowedTools());
+        List<String> denied = new ArrayList<>(governance.getDeniedTools());
+
+        String upperAction = action.trim().toUpperCase();
+        String currentStatus;
+
+        switch (upperAction) {
+            case "DENY" -> {
+                // 阻断：从允许列表中移除，并追加到拒绝列表
+                allowed.remove(rawToolName);
+                if (!denied.contains(rawToolName)) {
+                    denied.add(rawToolName);
+                }
+                currentStatus = "DENIED";
+                log.info("动态 ACL 阻断生效: routeId={}, toolName={}", routeId, rawToolName);
+            }
+            case "ALLOW" -> {
+                // 放行：从拒绝列表中移除，并追加到允许列表
+                denied.remove(rawToolName);
+                if (!allowed.contains(rawToolName)) {
+                    allowed.add(rawToolName);
+                }
+                currentStatus = "ALLOWED";
+                log.info("动态 ACL 放行生效: routeId={}, toolName={}", routeId, rawToolName);
+            }
+            case "RESET" -> {
+                // 重置：从两边都移除，恢复默认继承状态
+                allowed.remove(rawToolName);
+                denied.remove(rawToolName);
+                // 若默认为黑名单模式，移出后即为 ALLOWED；若白名单模式移出后为 DENIED
+                currentStatus = "WHITELIST".equalsIgnoreCase(governance.getAclMode()) ? "DENIED" : "ALLOWED";
+                log.info("动态 ACL 重置生效: routeId={}, toolName={}, status={}", routeId, rawToolName, currentStatus);
+            }
+            default -> throw new IllegalArgumentException("不支持的 ACL 操作动作: " + action + "，仅支持 ALLOW, DENY, RESET");
+        }
+
+        governance.setAllowedTools(allowed);
+        governance.setDeniedTools(denied);
+        return currentStatus;
     }
 
     /**

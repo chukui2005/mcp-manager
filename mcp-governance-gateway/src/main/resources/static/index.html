@@ -598,7 +598,10 @@
     <div id="tab-tools" class="tab-pane active">
       <div class="section-header">
         <h2 class="section-title">MCP 聚合工具列表与治理控制台</h2>
-        <input type="text" id="tool-search" class="search-input" placeholder="按工具名/服务搜索..." oninput="filterTools()">
+        <div style="display: flex; gap: 0.75rem;">
+          <input type="text" id="tool-search" class="search-input" placeholder="按工具名/服务搜索..." oninput="filterTools()">
+          <button class="btn btn-outline" onclick="loadTools()">刷新列表</button>
+        </div>
       </div>
       <div class="table-container">
         <table>
@@ -660,17 +663,26 @@
       loadRoutes();
       initAuditStream();
 
-      // 每 10 秒刷新概览数据
-      setInterval(loadOverview, 10000);
+      // 每 10 秒刷新概览数据与工具列表状态
+      setInterval(() => {
+        loadOverview();
+        loadTools();
+      }, 5000);
     });
 
-    // 选项卡切换
+    // 切换选项卡
     function switchTab(tabId) {
       document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
       document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
 
       event.target.classList.add('active');
       document.getElementById(tabId).classList.add('active');
+
+      if (tabId === 'tab-tools') {
+        loadTools();
+      } else if (tabId === 'tab-routes') {
+        loadRoutes();
+      }
     }
 
     // 格式化毫秒
@@ -732,7 +744,7 @@
     function renderTools(list) {
       const tbody = document.getElementById('tools-table-body');
       if (!list || list.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">暂无可用工具</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted);">暂无可用工具</td></tr>';
         return;
       }
 

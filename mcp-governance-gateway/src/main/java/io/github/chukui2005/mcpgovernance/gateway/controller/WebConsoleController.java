@@ -88,14 +88,14 @@ public class WebConsoleController {
      */
     @GetMapping("/overview")
     public Mono<Map<String, Object>> getOverview() {
-        return toolAggregator.aggregateTools().map(tools -> {
+        return getTools().map(allTools -> {
             McpMetricsSnapshot snapshot = metricsCollector.getSnapshot();
             Map<String, Object> resp = new LinkedHashMap<>();
 
             // 1. 网关运行信息
             Map<String, Object> gateway = new LinkedHashMap<>();
             gateway.put("status", "UP");
-            gateway.put("version", "0.1.0-SNAPSHOT");
+            gateway.put("version", "1.0.0");
             gateway.put("brand", "mcp-governance");
             gateway.put("uptimeMs", Math.max(0L, Duration.between(startupTime, Instant.now()).toMillis()));
             resp.put("gateway", gateway);
@@ -106,8 +106,14 @@ public class WebConsoleController {
             int activeUpstreams = routeManager.activeSize();
             counts.put("upstreamCount", totalUpstreams);
             counts.put("activeUpstreamCount", activeUpstreams);
-            counts.put("toolCount", tools.size());
-            counts.put("activeToolCount", tools.size());
+
+            int totalToolCount = allTools.size();
+            int activeToolCount = (int) allTools.stream()
+                    .filter(t -> Boolean.TRUE.equals(t.get("enabled")))
+                    .count();
+
+            counts.put("toolCount", totalToolCount);
+            counts.put("activeToolCount", activeToolCount);
             resp.put("counts", counts);
 
             // 3. 运行时治理度量统计

@@ -88,8 +88,10 @@ public class DefaultUpstreamToolProvider implements UpstreamToolProvider {
             return Mono.just(Collections.unmodifiableList(registered));
         }
 
-        // 2. 若存在连接池且路由具有网络地址，则尝试调用真实的客户端拉取 tools/list
-        if (clientPool != null && route.getProtocol() != null && route.getUri() != null && !route.getUri().trim().isEmpty()) {
+        // 2. 若存在连接池，尝试调用真实的客户端拉取 tools/list (支持 http, sse 以及 stdio)
+        boolean hasEndpoint = (route.getUri() != null && !route.getUri().trim().isEmpty())
+                || (route.getProtocol() == io.github.chukui2005.mcpgovernance.gateway.config.UpstreamProtocol.STDIO && route.getStdioCommand() != null);
+        if (clientPool != null && route.getProtocol() != null && hasEndpoint) {
             try {
                 UpstreamClient client = clientPool.getClient(route);
                 return client.listTools()

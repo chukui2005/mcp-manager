@@ -15,7 +15,17 @@ mcp:
       port: 18080
       request-timeout-ms: 30000
       upstreams:
-        - id: "demo-service"
+        # 1. 本地免注册 HTTP MCP 服务 (天气预报与集群重启)
+        - id: "weather-service"
           protocol: "http"
-          prefix: "demo_"
-          uri: "http://127.0.0.1:8081/mcp"
+          prefix: "weather_"
+          uri: "http://127.0.0.1:19090/mcp"
+
+        # 2. 本地免注册受控 STDIO MCP 进程沙箱 (四则运算器与回显)
+        - id: "local-tools"
+          protocol: "stdio"
+          prefix: "local_"
+          stdioCommand:
+            command: "node"
+            args:
+              - "samples/demo-stdio-server.js"

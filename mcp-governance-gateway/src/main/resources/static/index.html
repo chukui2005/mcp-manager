@@ -597,14 +597,13 @@
     <!-- 选项卡 1: 工具资产与治理 (Tool Picker) -->
     <div id="tab-tools" class="tab-pane active">
       <div class="section-header">
-        <h2 class="section-title">MCP 聚合工具列表与 Tool Picker 勾选治理</h2>
+        <h2 class="section-title">MCP 聚合工具列表与治理控制台</h2>
         <input type="text" id="tool-search" class="search-input" placeholder="按工具名/服务搜索..." oninput="filterTools()">
       </div>
       <div class="table-container">
         <table>
           <thead>
             <tr>
-              <th style="width: 70px; text-align: center;">勾选启用</th>
               <th>聚合名称 (Namespace)</th>
               <th>所属下游服务</th>
               <th>描述与参数</th>
@@ -614,7 +613,7 @@
           </thead>
           <tbody id="tools-table-body">
             <tr>
-              <td colspan="6" style="text-align: center; color: var(--text-muted);">正在加载工具资产...</td>
+              <td colspan="5" style="text-align: center; color: var(--text-muted);">正在加载工具资产...</td>
             </tr>
           </tbody>
         </table>
@@ -758,16 +757,11 @@
         const actionBtn = !isUpstreamOnline 
           ? '<span style="font-size: 0.75rem; color: var(--text-muted);">不可操作</span>'
           : (isAllowed
-              ? `<button class="btn btn-danger" onclick="toggleToolPicker('${t.name}', false)">一键禁用</button>`
-              : `<button class="btn btn-success" onclick="toggleToolPicker('${t.name}', true)">一键启用</button>`);
+              ? `<button class="btn btn-danger" onclick="toggleToolStatus('${t.name}', false)">一键禁用</button>`
+              : `<button class="btn btn-success" onclick="toggleToolStatus('${t.name}', true)">一键启用</button>`);
 
         return `
           <tr class="${rowClass}">
-            <td style="text-align: center;">
-              <input type="checkbox" class="tool-checkbox" ${checkboxChecked} ${checkboxDisabled}
-                     title="${!isUpstreamOnline ? '上游 Server 已停用' : (isToolEnabled ? '取消勾选将从 tools/list 中静默剔除' : '勾选将在 tools/list 中暴露')}"
-                     onchange="onToolCheckboxChange('${t.name}', this.checked)">
-            </td>
             <td>
               <div class="tool-name-cell">
                 <span class="tool-name">${t.name}</span>
@@ -779,7 +773,7 @@
               ${!isUpstreamOnline ? '<span class="badge badge-danger" style="margin-left: 0.25rem;">STOPPED</span>' : ''}
             </td>
             <td>
-              <div style="max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+              <div style="max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 ${t.description || '<span style="color: var(--text-muted);">(无描述)</span>'}
               </div>
             </td>
@@ -801,13 +795,8 @@
       renderTools(filtered);
     }
 
-    // Tool Picker Checkbox 改变事件
-    async function onToolCheckboxChange(toolName, enabled) {
-      await toggleToolPicker(toolName, enabled);
-    }
-
-    // Tool Picker 启停下发
-    async function toggleToolPicker(toolName, enabled) {
+    // 工具启用/禁用下发
+    async function toggleToolStatus(toolName, enabled) {
       try {
         const res = await fetch('/api/v1/tools/acl', {
           method: 'POST',
